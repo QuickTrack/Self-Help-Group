@@ -29,6 +29,7 @@
 - [x] **Edit Upcoming Meetings** - Added edit button and modal to each meeting card for updating meeting details; added PUT endpoint at `/api/meetings/[meetingId]`
 - [x] **Meetings Analysis panel** - Added dashboard panel showing meeting frequency, total meetings, average attendance, attendance rate, and attendee bar chart
 - [x] **Bonuses Analysis panel** - Added dashboard panel showing bonus distribution, total bonuses, recipients, average per person, and bonus trend line chart
+- [x] **Loan migration scripts** - Created SQL migration script for PostgreSQL and TypeScript migration script for MongoDB
 
 ## Current Structure
 
@@ -98,3 +99,4 @@ npm run dev    # Start development server
 | 2026-04-04 | Life Event Types management in Settings page |
 | 2026-04-06 | Edit Upcoming Meetings feature |
 | 2026-04-06 | Meetings Analysis and Bonuses Analysis panels on dashboard |
+| 2026-04-06 | Loan migration scripts (SQL + MongoDB) |
