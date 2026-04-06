@@ -33,6 +33,7 @@ interface EventTypeOption {
 const statusColors: Record<string, string> = {
   Pending: 'bg-yellow-100 text-yellow-800',
   Approved: 'bg-green-100 text-green-800',
+  'Treasurer Declined': 'bg-red-100 text-red-800',
   'Ready for Payment': 'bg-blue-100 text-blue-800',
   Rejected: 'bg-red-100 text-red-800',
   Paid: 'bg-purple-100 text-purple-800',
@@ -42,6 +43,7 @@ const statusColors: Record<string, string> = {
 const statusLabels: Record<string, string> = {
   Pending: 'Pending',
   Approved: 'Admin Approved',
+  'Treasurer Declined': 'Treasurer Declined',
   'Ready for Payment': 'Ready for Payment',
   Rejected: 'Rejected',
   Paid: 'Paid',
@@ -319,7 +321,60 @@ export default function WelfarePage() {
     alert('Awaiting Treasurer authorization. The Treasurer will review and authorize this payout for payment.');
   }
 
-  const isTreasurer = true; // TODO: Get from user role
+  const [isTreasurer, setIsTreasurer] = useState(false);
+  const [showTreasurerModal, setShowTreasurerModal] = useState(false);
+  const [selectedPayoutForTreasurer, setSelectedPayoutForTreasurer] = useState<any>(null);
+  const [treasurerDecision, setTreasurerDecision] = useState<'Approved' | 'Declined' | ''>('');
+  const [treasurerComments, setTreasurerComments] = useState('');
+  const [showRoleToggle, setShowRoleToggle] = useState(false);
+
+  async function handleTreasurerAction(id: string, currentStatus: string) {
+    const payout = payouts.find(p => p._id === id);
+    if (payout) {
+      setSelectedPayoutForTreasurer(payout);
+      setTreasurerDecision('');
+      setTreasurerComments('');
+      setShowTreasurerModal(true);
+    }
+  }
+
+  async function submitTreasurerDecision() {
+    if (!treasurerDecision) {
+      alert('Please select Approve or Reject');
+      return;
+    }
+    if (!treasurerComments.trim()) {
+      alert('Please add comments explaining your decision');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/welfare/payout', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          id: selectedPayoutForTreasurer._id, 
+          action: 'treasurer-decision', 
+          treasurerDecision,
+          treasurerComments,
+          adminApprovalReason: selectedPayoutForTreasurer.overrideReason || selectedPayoutForTreasurer.adminApprovalReason
+        }),
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        alert(data.error || 'Failed to submit decision');
+        return;
+      }
+      
+      setShowTreasurerModal(false);
+      loadData();
+    } catch (error) {
+      console.error('Error submitting treasurer decision:', error);
+      alert('Failed to submit decision. Please try again.');
+    }
+  }
 
   async function handleTreasurerAction(id: string, currentStatus: string) {
     if (currentStatus === 'Approved') {
@@ -410,19 +465,17 @@ export default function WelfarePage() {
               <Plus className="w-4 h-4" /> Add Contribution
             </button>
           }>
-            <button onClick={() => setShowModal(true)} className="btn btn-primary flex items-center gap-1">
+          <button onClick={() => setShowModal(true)} className="btn btn-primary flex items-center gap-1">
               <Plus className="w-4 h-4" /> Add Contribution
             </button>
           </PermissionGuard>
-          <PermissionGuard permission="welfare.create" fallback={
-            <button className="btn btn-primary flex items-center gap-1" disabled style={{ opacity: 0.5 }}>
-              <Plus className="w-4 h-4" /> Request Payout
-            </button>
-          }>
-            <button onClick={() => setShowPayoutModal(true)} className="btn btn-primary flex items-center gap-1">
-              <Plus className="w-4 h-4" /> Request Payout
-            </button>
-          </PermissionGuard>
+          <button 
+            onClick={() => setIsTreasurer(!isTreasurer)} 
+            className={`btn flex items-center gap-1 ${isTreasurer ? 'bg-purple-600 text-white' : 'btn-outline'}`}
+            title="Toggle role (for testing)"
+          >
+            {isTreasurer ? 'Treasurer' : 'Admin'}
+          </button>
         </div>
       </div>
 
@@ -523,6 +576,7 @@ export default function WelfarePage() {
                 <option value="">All Status</option>
                 <option value="Pending">Pending</option>
                 <option value="Approved">Admin Approved</option>
+                <option value="Treasurer Declined">Treasurer Declined</option>
                 <option value="Ready for Payment">Ready for Payment</option>
                 <option value="Rejected">Rejected</option>
                 <option value="Paid">Paid</option>
@@ -624,7 +678,7 @@ export default function WelfarePage() {
                             onClick={() => handleTreasurerAction(p._id, p.status)}
                             className="text-blue-600 hover:text-blue-800 text-sm"
                           >
-                            Approve (Treasurer)
+                            Review (Treasurer)
                           </button>
                         )}
                         {p.status === 'Approved' && !isTreasurer && (
@@ -991,6 +1045,93 @@ export default function WelfarePage() {
             <div className="mt-6 flex justify-end">
               <button onClick={() => setSelectedPayoutDetails(null)} className="btn btn-primary">
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTreasurerModal && selectedPayoutForTreasurer && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold mb-4">Treasurer Review - Payout Request</h2>
+            
+            <div className="bg-gray-50 rounded-lg p-4 mb-4">
+              <h3 className="font-medium mb-2">Member: {selectedPayoutForTreasurer.member?.fullName || 'Unknown'}</h3>
+              <p className="text-sm text-gray-600">Event: {selectedPayoutForTreasurer.eventType}</p>
+              <p className="text-sm text-gray-600">Requested: KES {selectedPayoutForTreasurer.requestedAmount?.toLocaleString()}</p>
+              <p className="text-sm text-gray-600">Approved: KES {selectedPayoutForTreasurer.approvedAmount?.toLocaleString()}</p>
+            </div>
+
+            {!selectedPayoutForTreasurer.eligibilityCheck?.isEligible && (
+              <div className="mb-4">
+                <h4 className="font-medium mb-2 text-red-600">Eligibility Issues:</h4>
+                <ul className="list-disc pl-5 text-sm text-red-600">
+                  {selectedPayoutForTreasurer.eligibilityCheck?.reasons?.map((reason: string, i: number) => (
+                    <li key={i}>{reason}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {selectedPayoutForTreasurer.adminApprovalReason && (
+              <div className="mb-4">
+                <h4 className="font-medium mb-2">Admin's Approval Reason:</h4>
+                <div className="bg-yellow-50 border border-yellow-200 rounded p-3 text-sm">
+                  {selectedPayoutForTreasurer.adminApprovalReason}
+                </div>
+              </div>
+            )}
+
+            <div className="mb-4">
+              <h4 className="font-medium mb-2">Your Decision:</h4>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setTreasurerDecision('Approved')}
+                  className={`flex-1 py-2 px-4 rounded border ${
+                    treasurerDecision === 'Approved' 
+                      ? 'bg-green-600 text-white border-green-600' 
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-green-50'
+                  }`}
+                >
+                  Approve
+                </button>
+                <button
+                  onClick={() => setTreasurerDecision('Declined')}
+                  className={`flex-1 py-2 px-4 rounded border ${
+                    treasurerDecision === 'Declined' 
+                      ? 'bg-red-600 text-white border-red-600' 
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-red-50'
+                  }`}
+                >
+                  Reject
+                </button>
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <h4 className="font-medium mb-2">Comments (required):</h4>
+              <textarea
+                value={treasurerComments}
+                onChange={(e) => setTreasurerComments(e.target.value)}
+                className="w-full border rounded p-3 text-sm"
+                rows={4}
+                placeholder="Enter your comments or reasons for this decision..."
+              />
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button 
+                onClick={() => setShowTreasurerModal(false)}
+                className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={submitTreasurerDecision}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Submit Decision
               </button>
             </div>
           </div>

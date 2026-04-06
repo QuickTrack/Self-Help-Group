@@ -297,7 +297,7 @@ export async function PATCH(request: Request) {
     await dbConnect();
     
     const body = await request.json();
-    const { id, action, approvedAmount, rejectionReason, userId, userRole, overrideEligible } = body;
+    const { id, action, approvedAmount, rejectionReason, userId, userRole, overrideEligible, treasurerDecision, treasurerComments, adminApprovalReason } = body;
     
     const payout = await WelfarePayout.findById(id);
     if (!payout) {
@@ -326,11 +326,52 @@ export async function PATCH(request: Request) {
       payout.approvedAmount = amount;
       payout.approvedByName = 'Administrator';
       payout.approvedAt = new Date();
+      
       if (overrideEligible) {
-        payout.overrideReason = 'Approved by administrator with override';
+        payout.overrideReason = adminApprovalReason || 'Approved by administrator with override';
+        payout.adminApprovalReason = adminApprovalReason || 'Approved by administrator with override';
       }
+      
+      // Add to audit log
+      payout.auditLog = payout.auditLog || [];
+      payout.auditLog.push({
+        action: 'Admin Approval',
+        performedBy: 'Administrator',
+        performedAt: new Date(),
+        comments: adminApprovalReason,
+        details: { overrideEligible, approvedAmount: amount },
+      });
+    } else if (action === 'treasurer-decision') {
+      // Stage 2: Treasurer decision (approve with override or reject)
+      if (payout.status !== 'Approved') {
+        return NextResponse.json({ 
+          error: 'Payout must be approved by Administrator first' 
+        }, { status: 400 });
+      }
+      
+      if (treasurerDecision === 'Approved') {
+        payout.status = 'Ready for Payment';
+        payout.treasurerDecision = 'Approved';
+        payout.treasurerComments = treasurerComments;
+        payout.treasurerApprovedAt = new Date();
+      } else if (treasurerDecision === 'Declined') {
+        payout.status = 'Treasurer Declined';
+        payout.treasurerDecision = 'Declined';
+        payout.treasurerComments = treasurerComments;
+        payout.treasurerApprovedAt = new Date();
+      }
+      
+      // Add to audit log
+      payout.auditLog = payout.auditLog || [];
+      payout.auditLog.push({
+        action: `Treasurer ${treasurerDecision}`,
+        performedBy: 'Treasurer',
+        performedAt: new Date(),
+        comments: treasurerComments,
+        details: { adminReason: payout.adminApprovalReason },
+      });
     } else if (action === 'approve-treasurer') {
-      // Stage 2: Treasurer authorization
+      // Legacy treasurer approval (for backwards compatibility)
       if (payout.status !== 'Approved') {
         return NextResponse.json({ 
           error: 'Payout must be approved by Administrator first' 

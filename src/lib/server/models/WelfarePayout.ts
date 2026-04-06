@@ -24,7 +24,7 @@ const welfarePayoutSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['Pending', 'Pending Review', 'Approved', 'Ready for Payment', 'Rejected', 'Paid', 'Cancelled'],
+    enum: ['Pending', 'Approved', 'Treasurer Declined', 'Ready for Payment', 'Rejected', 'Paid', 'Cancelled'],
     default: 'Pending',
   },
   eligibilityCheck: {
@@ -105,6 +105,24 @@ const welfarePayoutSchema = new mongoose.Schema({
   treasurerApprovedAt: {
     type: Date,
   },
+  treasurerDecision: {
+    type: String,
+    enum: ['Approved', 'Declined', null],
+    default: null,
+  },
+  treasurerComments: {
+    type: String,
+  },
+  adminApprovalReason: {
+    type: String,
+  },
+  auditLog: [{
+    action: String,
+    performedBy: String,
+    performedAt: Date,
+    comments: String,
+    details: Object,
+  }],
 }, {
   timestamps: true,
 });
