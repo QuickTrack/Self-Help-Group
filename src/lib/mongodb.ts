@@ -5,6 +5,10 @@ import { MongoClient, Db, Collection, Document } from 'mongodb';
 const MONGODB_URI = process.env.MONGODB_URI;
 const DB_NAME = process.env.DB_NAME || 'githirioni-shg';
 
+if (!MONGODB_URI) {
+  throw new Error('Missing required environment variable: MONGODB_URI');
+}
+
 interface MongoDBConnection {
   client: MongoClient;
   db: Db;
@@ -17,7 +21,7 @@ export async function connectToDatabase(): Promise<MongoDBConnection> {
     return cachedConnection;
   }
 
-  const client = new MongoClient(MONGODB_URI, {
+  const client = new MongoClient(MONGODB_URI!, {
     maxPoolSize: 10,
     minPoolSize: 2,
     maxIdleTimeMS: 30000,
