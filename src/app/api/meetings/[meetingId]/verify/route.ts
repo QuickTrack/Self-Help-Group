@@ -83,7 +83,7 @@ export async function POST(
       lastUsed: new Date(),
     });
 
-    const member = await Member.findById(matchedProfile.memberId).lean();
+    const member = await Member.findById(matchedProfile.memberId).lean() as any;
     if (!member) {
       return NextResponse.json(
         { verified: false, error: 'Member not found' },
