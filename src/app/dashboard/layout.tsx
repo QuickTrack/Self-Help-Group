@@ -75,7 +75,10 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="dashboard-container" style={{ display: 'flex', minHeight: '100vh', background: '#F8FAF8' }}>
+    <div className="dashboard-container" style={{ position: 'relative', display: 'flex', minHeight: '100vh', background: '#F8FAF8' }}>
+      {/* Trigger zone - only on left edge */}
+      <div className="sidebar-edge-trigger" />
+      
       <aside className="sidebar-hover-sidebar">
         <div style={{
           padding: '20px 24px',
