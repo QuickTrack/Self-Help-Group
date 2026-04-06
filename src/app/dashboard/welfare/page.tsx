@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { PermissionGuard } from '@/components/PermissionGuard';
 import { 
   Heart, 
@@ -89,9 +89,9 @@ export default function WelfarePage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       const [contribRes, payoutRes, eventTypesRes] = await Promise.all([
         fetch('/api/welfare'),
@@ -145,7 +145,7 @@ export default function WelfarePage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   async function handleAddContribution(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
