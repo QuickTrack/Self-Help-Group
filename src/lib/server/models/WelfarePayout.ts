@@ -66,6 +66,9 @@ const welfarePayoutSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
   },
+  approvedByName: {
+    type: String,
+  },
   approvedAt: {
     type: Date,
   },

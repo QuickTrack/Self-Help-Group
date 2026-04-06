@@ -331,9 +331,15 @@ export async function PATCH(request: Request) {
       
       payout.status = 'Approved';
       payout.approvedAmount = amount;
-      payout.approvedBy = userId;
+      
+      if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+        payout.approvedBy = new mongoose.Types.ObjectId(userId);
+      }
+      payout.approvedByName = 'Administrator';
       payout.approvedAt = new Date();
-      payout.overrideReason = overrideEligible ? 'Approved by administrator with override' : undefined;
+      if (overrideEligible) {
+        payout.overrideReason = 'Approved by administrator with override';
+      }
     } else if (action === 'reject') {
       payout.status = 'Rejected';
       payout.rejectedBy = userId;
