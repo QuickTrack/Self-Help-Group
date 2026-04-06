@@ -53,9 +53,13 @@ export default function LoansPage() {
     fetchLoans();
   }, [fetchLoans]);
 
-  const getMemberName = (id: string) => {
-    const member = members.find((m: any) => m._id === id);
-    return member?.fullName || 'Unknown';
+  const getMemberName = (memberData: any) => {
+    if (!memberData) return 'Unknown';
+    if (typeof memberData === 'string') {
+      const member = members.find((m: any) => m._id === memberData);
+      return member?.fullName || 'Unknown';
+    }
+    return memberData.fullName || 'Unknown';
   };
 
   const getStatusIcon = (status: string) => {
