@@ -1,5 +1,6 @@
 import { connectToDatabase, closeDatabaseConnection } from '../src/lib/mongodb';
 import { ObjectId } from 'mongodb';
+import bcrypt from 'bcryptjs';
 
 async function seedDatabase() {
   console.log('===========================================');
@@ -38,7 +39,7 @@ async function seedDatabase() {
 
     console.log('[2/10] Seeding Users...');
     const userIds: string[] = [];
-    const hashedPassword = '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqP3JzC3IO';
+    const hashedPassword = await bcrypt.hash('admin123', 12);
     for (const doc of [
       { email: 'admin@githirioni.org', password: hashedPassword, role: 'admin', isActive: true },
       { email: 'treasurer@githirioni.org', password: hashedPassword, role: 'treasurer', isActive: true },
