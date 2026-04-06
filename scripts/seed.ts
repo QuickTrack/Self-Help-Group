@@ -39,7 +39,7 @@ async function seedDatabase() {
 
     console.log('[2/10] Seeding Users...');
     const userIds: string[] = [];
-    const hashedPassword = await bcrypt.hash('admin123', 12);
+    const hashedPassword = await bcrypt.hash('admin123', 10);
     for (const doc of [
       { email: 'admin@githirioni.org', password: hashedPassword, role: 'admin', isActive: true },
       { email: 'treasurer@githirioni.org', password: hashedPassword, role: 'treasurer', isActive: true },
