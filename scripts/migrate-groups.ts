@@ -39,7 +39,7 @@ const Group = mongoose.models.Group || mongoose.model('Group', groupSchema);
 async function migrate() {
   console.log('🔄 Running Group migration...\n');
   
-  await mongoose.connect(MONGODB_URI);
+  await mongoose.connect(MONGODB_URI!);
   
   const existingGroup = await Group.findOne({ name: 'Githirioni Self Help Group' });
   
