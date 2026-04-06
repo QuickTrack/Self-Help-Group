@@ -87,7 +87,7 @@ export default function DashboardLayout({
         display: 'flex',
         flexDirection: 'column',
         zIndex: 50,
-        transform: sidebarOpen ? 'translateX(0)' : undefined,
+        transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
         transition: 'transform 150ms ease-out',
       }} className="sidebar">
         <div style={{
@@ -122,13 +122,11 @@ export default function DashboardLayout({
           <button 
             onClick={() => setSidebarOpen(false)}
             style={{
-              display: 'none',
               background: 'none',
               border: 'none',
               cursor: 'pointer',
               padding: '4px'
             }}
-            className="lg:hidden"
           >
             <X size={20} />
           </button>
@@ -203,15 +201,15 @@ export default function DashboardLayout({
             zIndex: 40,
           }}
           onClick={() => setSidebarOpen(false)}
-          className="lg:hidden"
         />
       )}
 
       <main style={{
         flex: 1,
-        marginLeft: '280px',
+        marginLeft: sidebarOpen ? '280px' : '0',
         minHeight: '100vh',
-      }}>
+        transition: 'margin-left 150ms ease-out',
+      }} className="main-content">
         <header style={{
           height: '64px',
           background: 'white',
@@ -227,7 +225,7 @@ export default function DashboardLayout({
           <button 
             onClick={() => setSidebarOpen(true)}
             style={{
-              display: 'none',
+              display: 'block',
               background: 'none',
               border: 'none',
               cursor: 'pointer',
