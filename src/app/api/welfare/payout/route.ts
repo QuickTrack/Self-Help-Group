@@ -446,7 +446,7 @@ export async function PATCH(request: Request) {
     } else if (action === 'pay') {
       // Mark as paid - no eligibility check needed since already approved
       payout.status = 'Paid';
-      payout.paidBy = userId;
+      payout.paidByName = userId || 'Administrator';
       payout.paidAt = new Date();
       
       // Add to audit log

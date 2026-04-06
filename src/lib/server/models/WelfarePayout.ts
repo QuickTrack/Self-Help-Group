@@ -86,6 +86,9 @@ const welfarePayoutSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
   },
+  paidByName: {
+    type: String,
+  },
   paidAt: {
     type: Date,
   },
@@ -131,4 +134,7 @@ welfarePayoutSchema.index({ member: 1, status: 1 });
 welfarePayoutSchema.index({ eventType: 1, status: 1 });
 welfarePayoutSchema.index({ createdAt: -1 });
 
-export const WelfarePayout = mongoose.models.WelfarePayout || mongoose.model('WelfarePayout', welfarePayoutSchema);
+// Force model recreation by deleting cache
+delete mongoose.models.WelfarePayout;
+
+export const WelfarePayout = mongoose.model('WelfarePayout', welfarePayoutSchema);
