@@ -99,6 +99,12 @@ const welfarePayoutSchema = new mongoose.Schema({
   overrideReason: {
     type: String,
   },
+  treasurerApprovedBy: {
+    type: String,
+  },
+  treasurerApprovedAt: {
+    type: Date,
+  },
 }, {
   timestamps: true,
 });

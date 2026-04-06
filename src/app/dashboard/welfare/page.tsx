@@ -249,12 +249,12 @@ export default function WelfarePage() {
     }
   }
 
-  async function handleApprovePayout(id: string, overrideEligible: boolean = false) {
+  async function handleAdminApprove(id: string, overrideEligible: boolean = false) {
     try {
       const res = await fetch('/api/welfare/payout', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, action: 'approve', userId: '1', overrideEligible }),
+        body: JSON.stringify({ id, action: 'approve-admin', userId: '1', userRole: 'administrator', overrideEligible }),
       });
       
       const data = await res.json();
@@ -265,9 +265,9 @@ export default function WelfarePage() {
           if (overrideEligible) {
             alert(`Override failed: ${reasons}`);
           } else {
-            const proceed = confirm(`Member does not meet eligibility requirements:\n\n${reasons}\n\nDo you want to override and approve anyway?\n\nNote: Override requires documenting justification per the override protocol.`);
+            const proceed = confirm(`Member does not meet eligibility requirements:\n\n${reasons}\n\nDo you want to override and approve anyway?`);
             if (proceed) {
-              handleApprovePayout(id, true);
+              handleAdminApprove(id, true);
             }
           }
         } else {
@@ -280,6 +280,28 @@ export default function WelfarePage() {
     } catch (error) {
       console.error('Error approving payout:', error);
       alert('Failed to approve payout. Please try again.');
+    }
+  }
+
+  async function handleTreasurerApprove(id: string) {
+    try {
+      const res = await fetch('/api/welfare/payout', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action: 'approve-treasurer', userId: '1', userRole: 'treasurer' }),
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        alert(data.error || 'Failed to authorize payout');
+        return;
+      }
+      
+      loadData();
+    } catch (error) {
+      console.error('Error authorizing payout:', error);
+      alert('Failed to authorize payout. Please try again.');
     }
   }
 
@@ -553,12 +575,12 @@ export default function WelfarePage() {
                       </td>
                       <td className="py-2">
                         {p.status === 'Pending' && (
-                          <div className="flex gap-1">
+                          <div className="flex flex-col gap-1">
                             <button
-                              onClick={() => handleApprovePayout(p._id)}
+                              onClick={() => handleAdminApprove(p._id)}
                               className="text-green-600 hover:text-green-800 text-sm"
                             >
-                              Approve
+                              Approve (Admin)
                             </button>
                             <button
                               onClick={() => {
@@ -573,10 +595,10 @@ export default function WelfarePage() {
                         )}
                         {p.status === 'Approved' && (
                           <button
-                            onClick={() => handleMarkPaid(p._id)}
+                            onClick={() => handleTreasurerApprove(p._id)}
                             className="text-blue-600 hover:text-blue-800 text-sm"
                           >
-                            Mark Paid
+                            Authorize (Treasurer)
                           </button>
                         )}
                       </td>

@@ -297,15 +297,15 @@ export async function PATCH(request: Request) {
     await dbConnect();
     
     const body = await request.json();
-    const { id, action, approvedAmount, rejectionReason, userId, overrideEligible } = body;
+    const { id, action, approvedAmount, rejectionReason, userId, userRole, overrideEligible } = body;
     
     const payout = await WelfarePayout.findById(id);
     if (!payout) {
       return NextResponse.json({ error: 'Payout not found' }, { status: 404 });
     }
     
-    if (action === 'approve') {
-      // Verify member eligibility before approving (unless override is explicitly requested)
+    if (action === 'approve-admin') {
+      // Stage 1: Administrator approval
       if (!overrideEligible) {
         const eligibility = await verifyMemberEligibility(payout.member.toString());
         
@@ -315,15 +315,8 @@ export async function PATCH(request: Request) {
             eligibilityDetails: eligibility
           }, { status: 400 });
         }
-        
-        if (eligibility.warnings && eligibility.warnings.length > 0) {
-          console.warn('Approving payout with warnings:', eligibility.warnings);
-        }
-      } else {
-        console.log('Eligibility check bypassed by administrator');
       }
 
-      // Get limit from settings
       const settings = await getEligibilitySettings();
       const limitKey = `limit${payout.eventType}`;
       const maxLimit = settings[limitKey] || EVENT_LIMITS[payout.eventType] || 10000;
@@ -331,20 +324,51 @@ export async function PATCH(request: Request) {
       
       payout.status = 'Approved';
       payout.approvedAmount = amount;
-      
-      if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-        payout.approvedBy = new mongoose.Types.ObjectId(userId);
-      }
       payout.approvedByName = 'Administrator';
+      payout.approvedAt = new Date();
+      if (overrideEligible) {
+        payout.overrideReason = 'Approved by administrator with override';
+      }
+    } else if (action === 'approve-treasurer') {
+      // Stage 2: Treasurer authorization
+      if (payout.status !== 'Approved') {
+        return NextResponse.json({ 
+          error: 'Payout must be approved by Administrator first' 
+        }, { status: 400 });
+      }
+      
+      payout.status = 'Ready for Payment';
+      payout.treasurerApprovedBy = 'Treasurer';
+      payout.treasurerApprovedAt = new Date();
+    } else if (action === 'approve') {
+      // Legacy single-step approval (for backwards compatibility)
+      if (!overrideEligible) {
+        const eligibility = await verifyMemberEligibility(payout.member.toString());
+        
+        if (!eligibility.isEligible) {
+          return NextResponse.json({ 
+            error: 'Member does not meet eligibility requirements',
+            eligibilityDetails: eligibility
+          }, { status: 400 });
+        }
+      }
+
+      const settings = await getEligibilitySettings();
+      const limitKey = `limit${payout.eventType}`;
+      const maxLimit = settings[limitKey] || EVENT_LIMITS[payout.eventType] || 10000;
+      const amount = approvedAmount || Math.min(payout.requestedAmount, maxLimit);
+      
+      payout.status = 'Approved';
+      payout.approvedAmount = amount;
+      payout.approvedByName = userRole === 'treasurer' ? 'Treasurer' : 'Administrator';
       payout.approvedAt = new Date();
       if (overrideEligible) {
         payout.overrideReason = 'Approved by administrator with override';
       }
     } else if (action === 'reject') {
       payout.status = 'Rejected';
-      payout.rejectedBy = userId;
-      payout.rejectedAt = new Date();
       payout.rejectionReason = rejectionReason;
+      payout.rejectedAt = new Date();
     } else if (action === 'pay') {
       // Verify eligibility before marking as paid
       const eligibility = await verifyMemberEligibility(payout.member.toString());
