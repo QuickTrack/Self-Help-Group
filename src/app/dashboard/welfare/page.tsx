@@ -305,6 +305,10 @@ export default function WelfarePage() {
     }
   }
 
+  function handleAdminClickWhenAlreadyApproved() {
+    alert('Awaiting Treasurer authorization. The Treasurer will review and authorize this payout for payment.');
+  }
+
   async function handleRejectPayout(id: string, reason: string) {
     try {
       const res = await fetch('/api/welfare/payout', {
@@ -595,10 +599,10 @@ export default function WelfarePage() {
                         )}
                         {p.status === 'Approved' && (
                           <button
-                            onClick={() => handleTreasurerApprove(p._id)}
-                            className="text-blue-600 hover:text-blue-800 text-sm"
+                            onClick={() => handleAdminClickWhenAlreadyApproved()}
+                            className="text-yellow-600 hover:text-yellow-800 text-sm"
                           >
-                            Authorize (Treasurer)
+                            Awaiting Treasurer
                           </button>
                         )}
                       </td>
