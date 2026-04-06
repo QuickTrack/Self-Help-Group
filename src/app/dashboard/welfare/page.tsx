@@ -470,6 +470,13 @@ export default function WelfarePage() {
             </button>
           </PermissionGuard>
           <button 
+            onClick={() => setShowPayoutModal(true)} 
+            className="btn btn-outline flex items-center gap-1"
+            title="Request a welfare payout"
+          >
+            <DollarSign className="w-4 h-4" /> Request Payout
+          </button>
+          <button 
             onClick={() => setIsTreasurer(!isTreasurer)} 
             className={`btn flex items-center gap-1 ${isTreasurer ? 'bg-purple-600 text-white' : 'btn-outline'}`}
             title="Toggle role (for testing)"
