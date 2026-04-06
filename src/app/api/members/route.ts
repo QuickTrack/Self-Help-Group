@@ -12,9 +12,9 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status');
     const location = searchParams.get('location');
     const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '20');
+    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 500);
 
-    const query: any = {};
+    const query: Record<string, unknown> = {};
     
     if (search) {
       query.$or = [
@@ -38,7 +38,8 @@ export async function GET(request: NextRequest) {
     const members = await Member.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .lean();
 
     const total = await Member.countDocuments(query);
 
@@ -54,7 +55,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Get members error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Failed to fetch members', members: [] },
       { status: 500 }
     );
   }
@@ -83,13 +84,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const query: any[] = [
+      { idNumber },
+      { phoneNumber },
+    ];
+    
+    if (email) {
+      query.push({ email });
+    }
+
     const existingMember = await Member.findOne({ 
-      $or: [{ idNumber }, { email: email || null }] 
+      $or: query 
     });
 
     if (existingMember) {
+      let field = 'this information';
+      if (existingMember.idNumber === idNumber) field = 'ID number';
+      else if (existingMember.phoneNumber === phoneNumber) field = 'phone number';
+      else if (existingMember.email === email) field = 'email';
+      
       return NextResponse.json(
-        { error: 'Member with this ID number or email already exists' },
+        { error: `A member with this ${field} already exists` },
         { status: 409 }
       );
     }
@@ -103,7 +118,7 @@ export async function POST(request: NextRequest) {
       idNumber,
       phoneNumber,
       email,
-      location: location || 'Githirioni',
+      location: (location && ['Githirioni', 'Lari', 'Kiambu', 'Other'].includes(location)) ? location : 'Githirioni',
       nextOfKinName,
       nextOfKinPhone,
       photo,
@@ -123,9 +138,37 @@ export async function POST(request: NextRequest) {
     }, { status: 201 });
   } catch (error) {
     console.error('Create member error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Detailed error:', errorMessage);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error: ' + errorMessage },
       { status: 500 }
     );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    await dbConnect();
+    
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    
+    if (!id) {
+      return NextResponse.json({ error: 'Member ID is required' }, { status: 400 });
+    }
+
+    const member = await Member.findById(id);
+    if (!member) {
+      return NextResponse.json({ error: 'Member not found' }, { status: 404 });
+    }
+
+    await Member.findByIdAndDelete(id);
+    await Savings.findOneAndDelete({ member: id });
+
+    return NextResponse.json({ message: 'Member deleted successfully' });
+  } catch (error) {
+    console.error('Delete member error:', error);
+    return NextResponse.json({ error: 'Failed to delete member' }, { status: 500 });
   }
 }

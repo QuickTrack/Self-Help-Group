@@ -3,6 +3,8 @@ import dbConnect from '../../../../lib/server/utils/db';
 import { User } from '../../../../lib/server/models/User';
 import { Member } from '../../../../lib/server/models/Member';
 import { createToken } from '../../../../lib/server/utils/auth';
+import { getDefaultPermissions, mergePermissions } from '../../../../lib/server/utils/permissions';
+import type { Permission } from '@/types';
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,16 +44,30 @@ export async function POST(request: NextRequest) {
     }
 
     const token = await createToken(user._id.toString(), user.email, user.role);
+    
+    const scope = user.permissionScope;
+    const effectivePermissions = mergePermissions(scope, user.role as any);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       token,
       user: {
         id: user._id,
         email: user.email,
         role: user.role,
         member: memberDetails,
+        permissionScope: scope || { allowed: [], denied: [] },
+        effectivePermissions,
       },
     });
+
+    response.cookies.set('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7,
+    });
+
+    return response;
   } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json(

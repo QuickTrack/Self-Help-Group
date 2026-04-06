@@ -1,9 +1,8 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import type { Member, Contribution, Loan, Savings, User, UserRole, DashboardStats } from '../types';
+import type { Member, Contribution, Loan, Savings, User, UserRole, DashboardStats, PermissionScope, Permission } from '../types';
 
 interface AppState {
-  user: User | null;
+  user: (User & { permissionScope?: PermissionScope; effectivePermissions?: Permission[] }) | null;
   isAuthenticated: boolean;
   members: any[];
   contributions: any[];
@@ -11,8 +10,8 @@ interface AppState {
   savings: any[];
   dashboardStats: DashboardStats;
   
-  setUser: (user: User | null) => void;
-  login: (email: string, password: string) => boolean;
+  setUser: (user: User & { permissionScope?: PermissionScope; effectivePermissions?: Permission[] } | null) => void;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   
   addMember: (member: any) => void;
@@ -31,7 +30,9 @@ interface AppState {
 
 const generateMemberId = (count: number) => `GSH-${String(count + 1).padStart(4, '0')}`;
 
-const seedMembers: Member[] = [
+const USE_DEV_DATA = process.env.NODE_ENV === 'development' && process.env.USE_DEV_DATA === 'true';
+
+const seedMembers: Member[] = USE_DEV_DATA ? [
   {
     _id: '1',
     memberId: 'GSH-0001',
@@ -95,18 +96,18 @@ const seedMembers: Member[] = [
     nextOfKinPhone: '+254766789012',
     status: 'inactive',
   },
-];
+] : [];
 
-const seedContributions: Contribution[] = [
+const seedContributions: Contribution[] = USE_DEV_DATA ? [
   { _id: '1', member: '1', amount: 1000, date: new Date('2024-01-01'), paymentMethod: 'M-Pesa', contributionType: 'Monthly', isRecurring: true, recordedBy: '1' },
   { _id: '2', member: '1', amount: 1000, date: new Date('2024-02-01'), paymentMethod: 'M-Pesa', contributionType: 'Monthly', isRecurring: true, recordedBy: '1' },
   { _id: '3', member: '2', amount: 1000, date: new Date('2024-01-01'), paymentMethod: 'Bank', contributionType: 'Monthly', isRecurring: true, recordedBy: '1' },
   { _id: '4', member: '3', amount: 250, date: new Date('2024-01-08'), paymentMethod: 'Cash', contributionType: 'Weekly', isRecurring: true, recordedBy: '1' },
   { _id: '5', member: '3', amount: 250, date: new Date('2024-01-15'), paymentMethod: 'Cash', contributionType: 'Weekly', isRecurring: true, recordedBy: '1' },
-  { _id: '6', member: '4', amount: 5000, date: new Date('2024-01-20'), paymentMethod: 'Bank', contributionType: 'Special', isRecurring: false, recordedBy: '1' },
-];
+  { _id: '6', member: '4', amount: 5000, date: new Date('2024-01-20'), paymentMethod: 'Bank', contributionType: 'Special', isRecurring: false, recordedBy: '1'   },
+] : [];
 
-const seedLoans: Loan[] = [
+const seedLoans: Loan[] = USE_DEV_DATA ? [
   {
     _id: '1',
     member: '1',
@@ -140,14 +141,14 @@ const seedLoans: Loan[] = [
     appliedBy: '1',
     approvedBy: '1',
   },
-];
+] : [];
 
-const seedSavings: Savings[] = [
+const seedSavings: Savings[] = USE_DEV_DATA ? [
   { _id: '1', member: '1', savingsBalance: 15000, totalShares: 5 },
   { _id: '2', member: '2', savingsBalance: 8000, totalShares: 3 },
   { _id: '3', member: '3', savingsBalance: 5000, totalShares: 2 },
   { _id: '4', member: '4', savingsBalance: 12000, totalShares: 4 },
-];
+] : [];
 
 const defaultStats: DashboardStats = {
   totalMembers: 5,
@@ -161,39 +162,32 @@ const defaultStats: DashboardStats = {
 };
 
 export const useStore = create<AppState>()(
-  persist(
-    (set, get) => ({
+  (set, get) => ({
       user: null,
       isAuthenticated: false,
-      members: seedMembers,
-      contributions: seedContributions,
-      loans: seedLoans,
-      savings: seedSavings,
+      members: [],
+      contributions: [],
+      loans: [],
+      savings: [],
       dashboardStats: defaultStats,
       
       setUser: (user) => set({ user, isAuthenticated: !!user }),
       
-      login: (email, password) => {
-        if (email === 'admin@githirioni.org' && password === 'admin123') {
-          const user: User = {
-            id: '1',
-            email,
-            password: '',
-            role: 'admin',
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          };
-          set({ user, isAuthenticated: true });
-          return true;
-        }
+      login: async (email: string, password: string) => {
         return false;
       },
       
-      logout: () => set({ user: null, isAuthenticated: false }),
+      logout: () => {
+        localStorage.removeItem('token');
+        set({ user: null, isAuthenticated: false });
+      },
       
-      addMember: (member) => set((state) => ({
-        members: [...state.members, { ...member, _id: String(state.members.length + 1) }]
-      })),
+      addMember: (member) => set((state) => {
+        if (!member?._id && !member?.memberId) return state;
+        const exists = state.members.some((m) => m._id === member._id || m.memberId === member.memberId);
+        if (exists) return state;
+        return { members: [...state.members, member] };
+      }),
       
       updateMember: (id, updates) => set((state) => ({
         members: state.members.map((m) => m._id === id ? { ...m, ...updates } : m)
@@ -244,9 +238,5 @@ export const useStore = create<AppState>()(
           memberGrowth: Math.round(((activeMembers - state.members.length) / state.members.length) * 100),
         };
       },
-    }),
-    {
-      name: 'githirioni-shg-storage',
-    }
-  )
+    })
 );

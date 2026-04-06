@@ -1,9 +1,15 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { UserRole } from '../../../types';
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'githirioni-shg-secret-key-2024'
-);
+const getJwtSecret = () => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET environment variable is not set');
+  }
+  return new TextEncoder().encode(secret);
+};
+
+const JWT_SECRET = getJwtSecret();
 
 export async function createToken(userId: string, email: string, role: UserRole): Promise<string> {
   return new SignJWT({ userId, email, role })
