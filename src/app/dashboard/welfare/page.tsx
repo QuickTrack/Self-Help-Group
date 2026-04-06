@@ -88,17 +88,27 @@ export default function WelfarePage() {
   const [selectedPayoutDetails, setSelectedPayoutDetails] = useState<any>(null);
   const [isSubmittingPayout, setIsSubmittingPayout] = useState(false);
   const [isSubmittingContribution, setIsSubmittingContribution] = useState(false);
+  const [welfareMinContribution, setWelfareMinContribution] = useState(100);
+  const [contributionAmount, setContributionAmount] = useState('');
 
   const loadData = useCallback(async () => {
     try {
-      const [contribRes, payoutRes, eventTypesRes] = await Promise.all([
+      const [contribRes, payoutRes, eventTypesRes, financialRes] = await Promise.all([
         fetch('/api/welfare'),
         fetch('/api/welfare/payout'),
         fetch('/api/life-event-types/options'),
+        fetch('/api/financial-settings'),
       ]);
       const contribData = await contribRes.json();
       const payoutData = await payoutRes.json();
       const eventTypesData = await eventTypesRes.json();
+      const financialData = await financialRes.json();
+      
+      // Set welfare minimum contribution from financial settings
+      if (financialData.settings?.welfareContribution) {
+        setWelfareMinContribution(financialData.settings.welfareContribution);
+        setContributionAmount(String(financialData.settings.welfareContribution));
+      }
       
       setContributions(contribData.contributions || []);
       setPayouts(payoutData.payouts || []);
@@ -785,8 +795,16 @@ export default function WelfarePage() {
               </div>
               
               <div className="mb-4">
-                <label className="block text-sm font-medium mb-1">Amount (KES)</label>
-                <input name="amount" type="number" required min="1" className="w-full border rounded px-3 py-2" />
+                <label className="block text-sm font-medium mb-1">Amount (KES) <span className="text-gray-500 text-xs">(Min: {welfareMinContribution})</span></label>
+                <input 
+                  name="amount" 
+                  type="number" 
+                  required 
+                  min={welfareMinContribution}
+                  value={contributionAmount}
+                  onChange={(e) => setContributionAmount(e.target.value)}
+                  className="w-full border rounded px-3 py-2" 
+                />
               </div>
               <div className="mb-4">
                 <label className="block text-sm font-medium mb-1">Payment Method</label>

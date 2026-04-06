@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/server/utils/db';
-import { WelfareFund, WelfarePayout, Member } from '@/lib/server/models';
+import { WelfareFund, WelfarePayout, Member, FinancialSettings } from '@/lib/server/models';
 import mongoose from 'mongoose';
 
 const EVENT_LIMITS: Record<string, number> = {
@@ -10,6 +10,15 @@ const EVENT_LIMITS: Record<string, number> = {
   Medical: 25000,
   Disaster: 30000,
 };
+
+async function getWelfareMinContribution(): Promise<number> {
+  try {
+    const settings = await FinancialSettings.findOne().sort({ createdAt: -1 }).lean();
+    return settings?.welfareContribution || 100;
+  } catch {
+    return 100;
+  }
+}
 
 export async function GET(request: Request) {
   try {
@@ -62,6 +71,12 @@ export async function POST(request: Request) {
     
     if (!amount || amount <= 0) {
       return NextResponse.json({ error: 'Valid amount is required' }, { status: 400 });
+    }
+
+    // Check minimum welfare contribution requirement
+    const minContribution = await getWelfareMinContribution();
+    if (amount < minContribution) {
+      return NextResponse.json({ error: `Minimum welfare contribution is KES ${minContribution}` }, { status: 400 });
     }
 
     // Check for duplicate recent contribution (within last 30 seconds)

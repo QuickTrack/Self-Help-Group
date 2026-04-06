@@ -70,6 +70,7 @@ interface SettingsState {
   shareValue: string;
   monthlyContribution: string;
   weeklyContribution: string;
+  welfareContribution: string;
   bonusPerAttendance: string;
   smsNotifications: boolean;
   emailNotifications: boolean;
@@ -189,6 +190,7 @@ export default function SettingsPage() {
     shareValue: '1000',
     monthlyContribution: '1000',
     weeklyContribution: '250',
+    welfareContribution: '100',
     bonusPerAttendance: '1000',
     smsNotifications: true,
     emailNotifications: true,
@@ -238,6 +240,7 @@ export default function SettingsPage() {
           setSettings(prev => ({
             ...prev,
             bonusPerAttendance: String(data.settings.bonusPerAttendance || 1000),
+            welfareContribution: String(data.settings.welfareContribution || 100),
           }));
         }
       } catch (error) {
@@ -309,6 +312,7 @@ export default function SettingsPage() {
           shareValue: Number(settings.shareValue),
           interestRate: Number(settings.defaultInterestRate),
           monthlyContribution: Number(settings.monthlyContribution),
+          welfareContribution: Number(settings.welfareContribution),
         }),
       });
 
@@ -875,6 +879,25 @@ export default function SettingsPage() {
                   onBlur={(e) => e.target.style.borderColor = '#F0ABFC'}
                 />
                 <p style={{ fontSize: '0.6875rem', color: '#86198F', marginTop: '6px' }}>Optional weekly contribution option</p>
+              </div>
+
+              <div style={{ 
+                padding: '20px', 
+                background: '#FEE2E2', 
+                borderRadius: '10px',
+                border: '1px solid #FCA5A5'
+              }}>
+                <label style={{ ...cardStyles.label, color: '#DC2626' }}>Welfare Contribution (KES)</label>
+                <input
+                  type="number"
+                  min="100"
+                  value={settings.welfareContribution}
+                  onChange={(e) => setSettings({ ...settings, welfareContribution: e.target.value })}
+                  style={{ ...cardStyles.input, borderColor: '#FCA5A5', background: 'white' }}
+                  onFocus={(e) => e.target.style.borderColor = '#228B22'}
+                  onBlur={(e) => e.target.style.borderColor = '#FCA5A5'}
+                />
+                <p style={{ fontSize: '0.6875rem', color: '#991B1B', marginTop: '6px' }}>Minimum welfare contribution amount (minimum: 100)</p>
               </div>
 
               <div style={{ 

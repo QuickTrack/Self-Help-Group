@@ -8,6 +8,7 @@ interface FinancialSettingsDoc {
   shareValue?: number;
   interestRate?: number;
   monthlyContribution?: number;
+  welfareContribution?: number;
   loanProcessingFee?: number;
   latePaymentPenalty?: number;
 }
@@ -18,6 +19,7 @@ export async function GET() {
     shareValue: 5000,
     interestRate: 10,
     monthlyContribution: 1000,
+    welfareContribution: 100,
     loanProcessingFee: 500,
     latePaymentPenalty: 100,
   };
@@ -29,17 +31,18 @@ export async function GET() {
     
     if (!settings) {
       const created = await FinancialSettings.create({});
-      return NextResponse.json({ 
-        settings: {
-          _id: (created as any)._id?.toString() || 'default',
-          bonusPerAttendance: defaults.bonusPerAttendance,
-          shareValue: defaults.shareValue,
-          interestRate: defaults.interestRate,
-          monthlyContribution: defaults.monthlyContribution,
-          loanProcessingFee: defaults.loanProcessingFee,
-          latePaymentPenalty: defaults.latePaymentPenalty,
-        }
-      });
+    return NextResponse.json({ 
+      settings: {
+        _id: (created as any)._id?.toString() || 'default',
+        bonusPerAttendance: defaults.bonusPerAttendance,
+        shareValue: defaults.shareValue,
+        interestRate: defaults.interestRate,
+        monthlyContribution: defaults.monthlyContribution,
+        welfareContribution: defaults.welfareContribution,
+        loanProcessingFee: defaults.loanProcessingFee,
+        latePaymentPenalty: defaults.latePaymentPenalty,
+      }
+    });
     }
     
     return NextResponse.json({ 
@@ -49,6 +52,7 @@ export async function GET() {
         shareValue: settings.shareValue ?? defaults.shareValue,
         interestRate: settings.interestRate ?? defaults.interestRate,
         monthlyContribution: settings.monthlyContribution ?? defaults.monthlyContribution,
+        welfareContribution: settings.welfareContribution ?? defaults.welfareContribution,
         loanProcessingFee: settings.loanProcessingFee ?? defaults.loanProcessingFee,
         latePaymentPenalty: settings.latePaymentPenalty ?? defaults.latePaymentPenalty,
       }
@@ -70,7 +74,7 @@ export async function PUT(request: NextRequest) {
     const updateData: any = {};
     const allowedFields = [
       'bonusPerAttendance', 'shareValue', 'interestRate', 
-      'monthlyContribution', 'loanProcessingFee', 'latePaymentPenalty'
+      'monthlyContribution', 'welfareContribution', 'loanProcessingFee', 'latePaymentPenalty'
     ];
     
     for (const field of allowedFields) {
@@ -97,6 +101,7 @@ export async function PUT(request: NextRequest) {
         shareValue: settings.shareValue,
         interestRate: settings.interestRate,
         monthlyContribution: settings.monthlyContribution,
+        welfareContribution: settings.welfareContribution,
         loanProcessingFee: settings.loanProcessingFee,
         latePaymentPenalty: settings.latePaymentPenalty,
       }
