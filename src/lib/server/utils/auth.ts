@@ -9,9 +9,8 @@ const getJwtSecret = () => {
   return new TextEncoder().encode(secret);
 };
 
-const JWT_SECRET = getJwtSecret();
-
 export async function createToken(userId: string, email: string, role: UserRole): Promise<string> {
+  const JWT_SECRET = getJwtSecret();
   return new SignJWT({ userId, email, role })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
@@ -21,6 +20,7 @@ export async function createToken(userId: string, email: string, role: UserRole)
 
 export async function verifyToken(token: string) {
   try {
+    const JWT_SECRET = getJwtSecret();
     const { payload } = await jwtVerify(token, JWT_SECRET);
     return payload;
   } catch {
