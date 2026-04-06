@@ -696,18 +696,13 @@ export default function WelfarePage() {
                             Awaiting Treasurer
                           </button>
                         )}
-                        {p.status === 'Ready for Payment' && isTreasurer && (
+                        {p.status === 'Ready for Payment' && (
                           <button
                             onClick={() => handleMarkPaid(p._id)}
                             className="text-purple-600 hover:text-purple-800 text-sm"
                           >
                             Mark as Paid
                           </button>
-                        )}
-                        {p.status === 'Ready for Payment' && !isTreasurer && (
-                          <span className="text-blue-600 text-sm">
-                            Ready for Payment
-                          </span>
                         )}
                       </td>
                     </tr>
