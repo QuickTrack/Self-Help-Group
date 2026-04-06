@@ -321,7 +321,7 @@ export default function WelfarePage() {
     alert('Awaiting Treasurer authorization. The Treasurer will review and authorize this payout for payment.');
   }
 
-  const [isTreasurer, setIsTreasurer] = useState(false);
+  const [isTreasurer, setIsTreasurer] = useState(true);
   const [showTreasurerModal, setShowTreasurerModal] = useState(false);
   const [selectedPayoutForTreasurer, setSelectedPayoutForTreasurer] = useState<any>(null);
   const [treasurerDecision, setTreasurerDecision] = useState<'Approved' | 'Declined' | ''>('');
