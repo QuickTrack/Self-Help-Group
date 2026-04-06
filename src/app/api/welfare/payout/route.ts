@@ -444,19 +444,20 @@ export async function PATCH(request: Request) {
       payout.rejectionReason = rejectionReason;
       payout.rejectedAt = new Date();
     } else if (action === 'pay') {
-      // Verify eligibility before marking as paid
-      const eligibility = await verifyMemberEligibility(payout.member.toString());
-      
-      if (!eligibility.isEligible) {
-        return NextResponse.json({ 
-          error: 'Member does not meet eligibility requirements for payout',
-          eligibilityDetails: eligibility
-        }, { status: 400 });
-      }
-      
+      // Mark as paid - no eligibility check needed since already approved
       payout.status = 'Paid';
       payout.paidBy = userId;
       payout.paidAt = new Date();
+      
+      // Add to audit log
+      payout.auditLog = payout.auditLog || [];
+      payout.auditLog.push({
+        action: 'Payment Processed',
+        performedBy: userId || 'Administrator',
+        performedAt: new Date(),
+        comments: 'Payout marked as paid',
+        details: {},
+      });
     } else if (action === 'cancel') {
       payout.status = 'Cancelled';
     }

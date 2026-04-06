@@ -412,19 +412,22 @@ export default function WelfarePage() {
         body: JSON.stringify({ id, action: 'pay', userId: '1' }),
       });
       
+      const data = await res.json();
+      
       if (!res.ok) {
-        const data = await res.json();
         if (data.eligibilityDetails) {
           alert(`Cannot process payment: Member does not meet eligibility requirements:\n\n${data.eligibilityDetails.reasons.join('\n')}`);
         } else {
-          alert(data.error || 'Failed to process payment');
+          alert(data.error || data.details || 'Failed to process payment');
         }
         return;
       }
       
       loadData();
+      alert('Payout marked as paid successfully!');
     } catch (error) {
       console.error('Error marking payout as paid:', error);
+      alert('Failed to process payment. Please try again.');
     }
   }
 
