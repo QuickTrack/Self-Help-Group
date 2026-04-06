@@ -86,6 +86,8 @@ export default function WelfarePage() {
   const [contributionError, setContributionError] = useState<string | null>(null);
   const [payoutError, setPayoutError] = useState<string | null>(null);
   const [selectedPayoutDetails, setSelectedPayoutDetails] = useState<any>(null);
+  const [isSubmittingPayout, setIsSubmittingPayout] = useState(false);
+  const [isSubmittingContribution, setIsSubmittingContribution] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -149,6 +151,9 @@ export default function WelfarePage() {
 
   async function handleAddContribution(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    
+    if (isSubmittingContribution) return;
+    
     const formData = new FormData(e.currentTarget);
     const data = {
       member: selectedMember,
@@ -178,6 +183,7 @@ export default function WelfarePage() {
     
     setContributionError(null);
     setContributionNotification(null);
+    setIsSubmittingContribution(true);
     
     try {
       const res = await fetch('/api/welfare', {
@@ -208,12 +214,18 @@ export default function WelfarePage() {
     } catch (error) {
       setContributionError('Failed to add contribution');
       console.error('Error adding contribution:', error);
+    } finally {
+      setIsSubmittingContribution(false);
     }
   }
 
   async function handleRequestPayout(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    
+    if (isSubmittingPayout) return;
+    
     setPayoutError(null);
+    setIsSubmittingPayout(true);
     
     const formData = new FormData(e.currentTarget);
     const eventType = formData.get('eventType') as string;
@@ -258,6 +270,8 @@ export default function WelfarePage() {
     } catch (error) {
       console.error('Error requesting payout:', error);
       setPayoutError('Failed to submit request');
+    } finally {
+      setIsSubmittingPayout(false);
     }
   }
 
@@ -794,8 +808,8 @@ export default function WelfarePage() {
                 }} className="btn btn-outline">
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  Add Contribution
+                <button type="submit" disabled={isSubmittingContribution} className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
+                  {isSubmittingContribution ? 'Adding...' : 'Add Contribution'}
                 </button>
               </div>
             </form>
@@ -948,10 +962,11 @@ export default function WelfarePage() {
                   </button>
                   <button 
                     type="submit" 
-                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-lg hover:from-red-600 hover:to-pink-600 transition font-medium flex items-center justify-center gap-2"
+                    disabled={isSubmittingPayout}
+                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-lg hover:from-red-600 hover:to-pink-600 transition font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Send className="w-4 h-4" />
-                    Submit Request
+                    {isSubmittingPayout ? 'Submitting...' : 'Submit Request'}
                   </button>
                 </div>
               </form>

@@ -249,6 +249,18 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { member: memberInput, eventType, eventDescription, requestedAmount, eventDate, notes, requestBy } = body;
     
+    // Check for duplicate recent payout request (within last 2 minutes)
+    const recentDuplicate = await WelfarePayout.findOne({
+      member: memberInput,
+      eventType,
+      status: { $in: ['Pending', 'Approved', 'Ready for Payment'] },
+      createdAt: { $gte: new Date(Date.now() - 2 * 60 * 1000) }
+    });
+    
+    if (recentDuplicate) {
+      return NextResponse.json({ error: 'A similar payout request was recently submitted. Please wait before submitting another.' }, { status: 409 });
+    }
+    
     let memberId = memberInput;
     if (!mongoose.Types.ObjectId.isValid(memberInput) || memberInput.length !== 24) {
       const foundMember = await Member.findOne({ memberId: memberInput });

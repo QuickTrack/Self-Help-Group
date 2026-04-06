@@ -64,6 +64,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Valid amount is required' }, { status: 400 });
     }
 
+    // Check for duplicate recent contribution (within last 30 seconds)
+    const recentDuplicate = await WelfareFund.findOne({
+      member: member,
+      amount: amount,
+      createdAt: { $gte: new Date(Date.now() - 30 * 1000) }
+    });
+    
+    if (recentDuplicate) {
+      return NextResponse.json({ error: 'A similar contribution was recently submitted. Please wait before submitting another.' }, { status: 409 });
+    }
+
     let memberId = member;
     if (!mongoose.Types.ObjectId.isValid(member) || member.length !== 24) {
       const foundMember = await Member.findOne({ memberId: member });
