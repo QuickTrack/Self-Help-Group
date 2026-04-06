@@ -1,0 +1,243 @@
+================================================================================
+CORPORATE REPORT PRINT TEMPLATE
+Githirioni Self Help Group
+================================================================================
+Version: 1.0
+Last Updated: April 2026
+
+STYLE GUIDELINES:
+- Heading 1: 14pt Bold, #228B22 (green), bottom border
+- Heading 2: 13pt Semi-Bold, #1A1A1A
+- Heading 3: 12pt Semi-Bold, #4A4A4A
+- Body Text: 11pt Regular, #1A1A1A, 1.4 line-height
+- Table Text: 10pt Regular
+
+MARGINS:
+- Top: 20mm
+- Bottom: 25mm
+- Left: 15mm
+- Right: 15mm
+
+================================================================================
+HEADER (appears on every page)
+================================================================================
++---------------------------------------------------------------+
+|  [LOGO]  Githirioni SHG              |     Report Title            |
+|                                   |     Generated: DD/MM/YYYY |
++---------------------------------------------------------------+
+
+================================================================================
+FOOTER (appears on every page)
+================================================================================
++---------------------------------------------------------------+
+|  CONFIDENTIAL - Internal Use Only    |  Version 1.0  |  Page X of Y |
++---------------------------------------------------------------+
+
+================================================================================
+DOCUMENT STRUCTURE
+================================================================================
+
+--- TITLE PAGE ---
+================================================================================
+{Title: 20pt Bold, Center}
+{Subtitle: 14pt, Center}
+{Generated: DD Month YYYY | Version X.X, Center}
+
+Document Information:
++------------------------+------------------------+----------------+
+| Document Type: Report  | Classification: Internal| Prepared By:   |
++------------------------+------------------------+----------------+
+
+--- EXECUTIVE SUMMARY ---
+================================================================================
+<Background: #F0FDF4 (light green), Left border: 4px solid #228B22>
+
+# Executive Summary
+[Content here - max 200 words]
+
+--- INTRODUCTION ---
+================================================================================
+
+# Introduction
+This report provides a comprehensive overview...
+
+--- FINDINGS ---
+================================================================================
+
+# Findings
+[Data tables, charts, statistics]
+
+Key Statistics:
++-------------+-------------+
+| Metric      | Value       |
++-------------+-------------+
+| Fund Balance| KES XXX,XXX |
+| Contributions| XXX        |
++-------------+-------------+
+
+--- RECOMMENDATIONS ---
+================================================================================
+<Background: #FEF3C7 (light yellow), Left border: 4px solid #F59E0B>
+
+# Recommendations
+1. [First recommendation]
+2. [Second recommendation]
+3. [Third recommendation]
+
+--- APPENDICES ---
+================================================================================
+<Border-top: 1px dashed #E5E7EB>
+
+# Appendices
+[Supporting data, raw figures]
+
+================================================================================
+REUSABLE STYLES
+================================================================================
+
+.KEY-STAT
+============
+| KES XXX,XXX |
+| Fund Balance|
++------------+
+
+.OUTLOOK-BOX
+============
+<Positive: #F0FDF4, left border: 3px solid #22C55E>
+<Caution: #FEF3C7, left border: 3px solid #F59E0B>
+<Negative: #FEF2F2, left border: 3px solid #EF4444>
+
+.SIGNATURE-BLOCK
+===============
+[Line] _______________________
+Name: [Person Name]
+Title: [Title]
+
+================================================================================
+CSS CODE
+================================================================================
+
+@media print {
+  @page {
+    size: A4;
+    margin: 20mm 15mm 25mm 15mm;
+  }
+  
+  body {
+    font-family: 'Calibri', Arial, sans-serif;
+    font-size: 11pt;
+    line-height: 1.4;
+  }
+  
+  .print-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 2px solid #228B22;
+    padding: 0 15mm;
+  }
+  
+  .print-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid #E5E7EB;
+    padding: 0 15mm;
+    font-size: 9pt;
+  }
+  
+  h1 {
+    font-size: 14pt;
+    font-weight: 700;
+    color: #228B22;
+    border-bottom: 1px solid #228B22;
+    padding-bottom: 4px;
+    margin-top: 20px;
+    margin-bottom: 12px;
+  }
+  
+  .print-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  
+  .print-table th {
+    background: #F9FAFB;
+    border: 1px solid #E5E7EB;
+    padding: 8px;
+    text-align: left;
+    font-weight: 600;
+  }
+  
+  .print-table td {
+    border: 1px solid #E5E7EB;
+    padding: 6px 8px;
+  }
+}
+
+================================================================================
+LATEX TEMPLATE (alternative)
+================================================================================
+
+\documentclass[12pt,a4paper]{article}
+\usepackage[margin=20mm]{geometry}
+\usepackage{graphicx}
+\usepackage{color}
+\usepackage{booktabs}
+\usepackage{fancyhdr}
+
+\definecolor{shg-green}{RGB}{34,139,34}
+
+\fancyhf{}
+\fancyfoot[C]{\thepage}
+\fancyfoot[L]{CONFIDENTIAL - Internal Use Only}
+\fancyfoot[R]{Version 1.0}
+
+\begin{document}
+\thispagestyle{empty}
+\begin{center}
+\textbf{\LARGE FUND TITLE}\\[0.5cm]
+\textbf{\normalsize Subtitle}\\[0.5cm]
+Generated: \today | Version 1.0
+\end{center}
+
+\section{Executive Summary}
+\begin{enumerate}
+\item First finding
+\item Second finding
+\end{enumerate}
+
+\section{Findings}
+\begin{table}[h]
+\centering
+\begin{tabular}{lrr}
+\toprule
+Metric & Value \\
+\midrule
+Fund Balance & KES XXX,XXX \\
+Contributions & XXX \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Recommendations}
+\begin{enumerate}
+\item Recommendation 1
+\item Recommendation 2
+\end{enumerate}
+
+\end{document}
+
+================================================================================
+END OF TEMPLATE
+================================================================================

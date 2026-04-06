@@ -49,6 +49,20 @@ const memberSchema = new mongoose.Schema({
     enum: ['active', 'inactive'],
     default: 'active',
   },
+  biometricConsentGiven: {
+    type: Boolean,
+    default: false,
+  },
+  biometricConsentDate: {
+    type: Date,
+  },
+  biometricConsentVersion: {
+    type: String,
+  },
+  biometricEnrolled: {
+    type: Boolean,
+    default: false,
+  },
 }, {
   timestamps: true,
 });

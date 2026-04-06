@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useStore } from '../../../stores/useStore';
+import { PermissionGuard } from '@/components/PermissionGuard';
 import { 
   Wallet, 
   Search, 
@@ -13,6 +14,7 @@ import {
   Banknote,
   Building2
 } from 'lucide-react';
+import { MemberSearch } from '@/components/MemberSearch';
 
 const paymentMethods = ['Cash', 'M-Pesa', 'Bank'];
 const contributionTypes = ['Monthly', 'Weekly', 'Special'];
@@ -33,9 +35,15 @@ export default function ContributionsPage() {
     notes: '',
   });
 
-  const getMemberName = (id: string) => {
-    const member = members.find((m: any) => m._id === id);
-    return member?.fullName || 'Unknown';
+  const getMemberName = (memberData: any) => {
+    if (typeof memberData === 'object' && memberData?.fullName) {
+      return memberData.fullName;
+    }
+    if (typeof memberData === 'string') {
+      const member = members.find((m: any) => m.memberId === memberData || m._id === memberData);
+      return member?.fullName || 'Unknown';
+    }
+    return 'Unknown';
   };
 
   const filteredContributions = contributions.filter((c: any) => {
@@ -48,21 +56,43 @@ export default function ContributionsPage() {
 
   const totalAmount = filteredContributions.reduce((sum: number, c: any) => sum + c.amount, 0);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const newContribution = {
-      _id: String(contributions.length + 1),
-      member: formData.member,
-      amount: Number(formData.amount),
-      date: new Date(formData.date),
-      paymentMethod: formData.paymentMethod,
-      contributionType: formData.contributionType,
-      isRecurring: formData.isRecurring,
-      notes: formData.notes || undefined,
-      recordedBy: '1',
-    };
-    addContribution(newContribution);
+    if (!formData.member || !formData.amount) {
+      alert('Please select a member and enter an amount');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/contributions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          member: formData.member,
+          amount: Number(formData.amount),
+          date: formData.date,
+          paymentMethod: formData.paymentMethod,
+          contributionType: formData.contributionType,
+          isRecurring: formData.isRecurring,
+          notes: formData.notes || undefined,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        addContribution(data.contribution);
+      } else {
+        const error = await res.json();
+        alert(error.error || 'Failed to record contribution');
+        return;
+      }
+    } catch (error) {
+      console.error('Error recording contribution:', error);
+      alert('Failed to record contribution');
+      return;
+    }
+
     setShowModal(false);
     setFormData({
       member: '',
@@ -184,10 +214,17 @@ export default function ContributionsPage() {
               <Download size={16} />
               Export
             </button>
-            <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-              <Plus size={16} />
-              Add Contribution
-            </button>
+            <PermissionGuard permission="contributions.create" fallback={
+              <button className="btn btn-primary" disabled style={{ opacity: 0.5 }}>
+                <Plus size={16} />
+                Add Contribution
+              </button>
+            }>
+              <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+                <Plus size={16} />
+                Add Contribution
+              </button>
+            </PermissionGuard>
           </div>
         </div>
 
@@ -259,17 +296,11 @@ export default function ContributionsPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div className="form-group">
                   <label className="input-label">Member *</label>
-                  <select
+                  <MemberSearch
                     value={formData.member}
-                    onChange={(e) => setFormData({ ...formData, member: e.target.value })}
-                    className="input select"
-                    required
-                  >
-                    <option value="">Select Member</option>
-                    {members.map((m: any) => (
-                      <option key={m._id} value={m._id}>{m.fullName} ({m.memberId})</option>
-                    ))}
-                  </select>
+                    onChange={(memberId) => setFormData({ ...formData, member: memberId })}
+                    placeholder="Search member by name, ID, or phone..."
+                  />
                 </div>
                 <div className="form-group">
                   <label className="input-label">Amount (KES) *</label>

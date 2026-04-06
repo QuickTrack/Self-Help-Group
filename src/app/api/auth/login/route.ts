@@ -4,10 +4,19 @@ import { User } from '../../../../lib/server/models/User';
 import { Member } from '../../../../lib/server/models/Member';
 import { createToken } from '../../../../lib/server/utils/auth';
 import { getDefaultPermissions, mergePermissions } from '../../../../lib/server/utils/permissions';
+import { checkRateLimit } from '../../../../lib/server/utils/rateLimit';
 import type { Permission } from '@/types';
 
 export async function POST(request: NextRequest) {
   try {
+    const clientIp = request.headers.get('x-forwarded-for') || request.ip || 'unknown';
+    if (!checkRateLimit(clientIp)) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429 }
+      );
+    }
+
     await dbConnect();
     
     const body = await request.json();

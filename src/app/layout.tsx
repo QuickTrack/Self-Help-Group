@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Sans, Inter } from "next/font/google";
 import "./globals.css";
+import { ReduxProvider } from "@/components/ReduxProvider";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -27,7 +28,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="light">
       <body className={`${dmSans.variable} ${inter.variable} font-sans`}>
-        {children}
+        <ReduxProvider>
+          {children}
+        </ReduxProvider>
       </body>
     </html>
   );

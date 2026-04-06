@@ -1,11 +1,31 @@
 export type UserRole = 'admin' | 'treasurer' | 'secretary' | 'member';
 
+export type Permission = 
+  | 'dashboard.view'
+  | 'members.view' | 'members.create' | 'members.edit' | 'members.delete'
+  | 'contributions.view' | 'contributions.create'
+  | 'loans.view' | 'loans.create' | 'loans.approve' | 'loans.disburse'
+  | 'savings.view' | 'savings.create' | 'savings.addTransaction'
+  | 'welfare.view' | 'welfare.create' | 'welfare.approve'
+  | 'reports.view'
+  | 'meetings.view' | 'meetings.create'
+  | 'announcements.view' | 'announcements.create'
+  | 'settings.view' | 'settings.edit'
+  | 'users.view' | 'users.create' | 'users.edit' | 'users.delete';
+
+export type PermissionScope = {
+  allowed: Permission[];
+  denied?: Permission[];
+};
+
 export interface User {
   id: string;
   email: string;
   password?: string;
   role: UserRole;
   member?: string;
+  permissionScope?: PermissionScope;
+  effectivePermissions?: Permission[];
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -158,6 +178,24 @@ export interface Settings {
   shareValue: number;
   monthlyContribution: number;
   weeklyContribution: number;
+}
+
+export interface EventType {
+  _id: string;
+  name: string;
+  description: string;
+  isHardcoded: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface LifeEventType {
+  _id: string;
+  name: string;
+  description: string;
+  maxCompensation: number;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface DashboardStats {

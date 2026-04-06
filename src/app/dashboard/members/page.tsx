@@ -1,7 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useStore } from '../../../stores/useStore';
+import { PermissionGuard } from '@/components/PermissionGuard';
+import BiometricEnrollment from '@/components/BiometricEnrollment';
 import { 
   Search, 
   Plus, 
@@ -9,7 +11,8 @@ import {
   Edit,
   Trash2,
   MapPin,
-  X
+  X,
+  Fingerprint
 } from 'lucide-react';
 
 const locationOptions = ['Githirioni', 'Lari', 'Kiambu', 'Other'];
@@ -17,11 +20,15 @@ const statusOptions = ['active', 'inactive'];
 
 export default function MembersPage() {
   const { members, addMember, updateMember, deleteMember } = useStore();
+  const isLoadingRef = useRef(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLocation, setFilterLocation] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingMember, setEditingMember] = useState<any>(null);
+  const [showBiometricModal, setShowBiometricModal] = useState(false);
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const [biometricEnrolled, setBiometricEnrolled] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     fullName: '',
     idNumber: '',
@@ -32,6 +39,29 @@ export default function MembersPage() {
     nextOfKinPhone: '',
     status: 'active',
   });
+
+  useEffect(() => {
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
+    
+    const init = async () => {
+      try {
+        const res = await fetch('/api/members?limit=500');
+        const data = await res.json();
+        
+        if (!data.members) return;
+        
+        data.members.forEach((member: any) => {
+          addMember(member);
+        });
+      } catch (error) {
+        console.error('Failed to fetch members:', error);
+        isLoadingRef.current = false;
+      }
+    };
+    
+    init();
+  }, []);
 
   const filteredMembers = members.filter((member: any) => {
     const matchesSearch = !searchTerm || 
@@ -72,27 +102,71 @@ export default function MembersPage() {
     setShowModal(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (editingMember) {
       updateMember(editingMember._id, formData);
     } else {
-      const newMember = {
-        _id: String(members.length + 1),
-        memberId: `GSH-${String(members.length + 1).padStart(4, '0')}`,
-        ...formData,
-        joinDate: new Date(),
+      const memberData = {
+        fullName: formData.fullName,
+        idNumber: formData.idNumber,
+        phoneNumber: formData.phoneNumber,
+        email: formData.email || undefined,
+        location: formData.location,
+        nextOfKinName: formData.nextOfKinName,
+        nextOfKinPhone: formData.nextOfKinPhone,
       };
-      addMember(newMember);
+
+      try {
+        const res = await fetch('/api/members', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(memberData),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          addMember({
+            _id: data.member._id,
+            memberId: data.member.memberId,
+            ...formData,
+            joinDate: new Date(),
+          });
+        } else {
+          const error = await res.json();
+          alert(error.error || 'Failed to save member');
+          return;
+        }
+      } catch (error) {
+        console.error('Error saving member:', error);
+        alert('Failed to save member');
+        return;
+      }
     }
     
     setShowModal(false);
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this member?')) {
-      deleteMember(id);
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this member?')) {
+      return;
+    }
+    
+    try {
+      const res = await fetch(`/api/members?id=${id}`, {
+        method: 'DELETE',
+      });
+      
+      if (res.ok) {
+        deleteMember(id);
+      } else {
+        const error = await res.json();
+        alert(error.error || 'Failed to delete member');
+      }
+    } catch (error) {
+      console.error('Error deleting member:', error);
+      alert('Failed to delete member');
     }
   };
 
@@ -179,10 +253,17 @@ export default function MembersPage() {
               <Download size={16} />
               Export
             </button>
-            <button className="btn btn-primary" onClick={() => handleOpenModal()}>
-              <Plus size={16} />
-              Add Member
-            </button>
+            <PermissionGuard permission="members.create" fallback={
+              <button className="btn btn-primary" disabled style={{ opacity: 0.5 }}>
+                <Plus size={16} />
+                Add Member
+              </button>
+            }>
+              <button className="btn btn-primary" onClick={() => handleOpenModal()}>
+                <Plus size={16} />
+                Add Member
+              </button>
+            </PermissionGuard>
           </div>
         </div>
 
@@ -233,6 +314,55 @@ export default function MembersPage() {
                   </td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {member.biometricEnrolled || member.biometricConsentGiven ? (
+                        <button
+                          onClick={() => {
+                            setSelectedMemberId(member._id);
+                            setShowBiometricModal(true);
+                          }}
+                          style={{
+                            padding: '6px',
+                            background: '#DCFCE7',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: '#16A34A',
+                            borderRadius: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '0.6875rem',
+                            fontWeight: 500,
+                          }}
+                          title="Manage Biometrics"
+                        >
+                          <Fingerprint size={14} />
+                          Bio
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setSelectedMemberId(member._id);
+                            setShowBiometricModal(true);
+                          }}
+                          style={{
+                            padding: '6px',
+                            background: '#F3F4F6',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: '#6B7280',
+                            borderRadius: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '0.6875rem',
+                            fontWeight: 500,
+                          }}
+                          title="Enroll Biometrics"
+                        >
+                          <Fingerprint size={14} />
+                          Add
+                        </button>
+                      )}
                       <button
                         onClick={() => handleOpenModal(member)}
                         style={{
@@ -386,6 +516,39 @@ export default function MembersPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showBiometricModal && selectedMemberId && (
+        <div className="modal-overlay" onClick={() => setShowBiometricModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '16px 20px',
+              borderBottom: '1px solid #E5E7EB'
+            }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>
+                Biometric Enrollment
+              </h3>
+              <button
+                onClick={() => setShowBiometricModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <BiometricEnrollment
+              memberId={selectedMemberId}
+              onComplete={(success, enrolledTypes) => {
+                if (success) {
+                  setBiometricEnrolled(enrolledTypes);
+                  setShowBiometricModal(false);
+                }
+              }}
+            />
           </div>
         </div>
       )}

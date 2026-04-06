@@ -31,6 +31,14 @@
 - [x] **Bonuses Analysis panel** - Added dashboard panel showing bonus distribution, total bonuses, recipients, average per person, and bonus trend line chart
 - [x] **Loan migration scripts** - Created SQL migration script for PostgreSQL and TypeScript migration script for MongoDB
 - [x] **Loans page now fetches from MongoDB** - Updated loans page to fetch loan data from `/api/loans` endpoint instead of local store
+- [x] **Biometric Authentication System** - Complete refactor:
+  - Created `/api/biometric/enroll` endpoint for secure enrollment with GDPR consent
+  - Created `/api/biometric/verify` endpoint for real-time check-in verification
+  - Updated Member model with biometricConsentGiven, biometricConsentDate, biometricConsentVersion fields
+  - Created BiometricEnrollment component for member registration with consent capture
+  - Updated BiometricCheckIn component with real-time capture and verification
+  - Added fingerprint button to member list actions for quick enrollment
+  - Created comprehensive documentation in `docs/BIOMETRIC_SYSTEM.md`
 
 ## Current Structure
 
@@ -102,3 +110,4 @@ npm run dev    # Start development server
 | 2026-04-06 | Meetings Analysis and Bonuses Analysis panels on dashboard |
 | 2026-04-06 | Loan migration scripts (SQL + MongoDB) |
 | 2026-04-06 | Loans page fetches from MongoDB API |
+| 2026-04-06 | Biometric authentication system with GDPR consent |

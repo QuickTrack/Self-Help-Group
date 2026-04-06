@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useStore } from '../../stores/useStore';
+import { useAppDispatch, useAppSelector } from '@/lib/store/hooks';
+import { fetchGroupSettings } from '@/lib/store/groupSlice';
+import { PermissionGuard } from '@/components/PermissionGuard';
 import { 
   Leaf, 
   LayoutDashboard, 
@@ -18,18 +21,20 @@ import {
   Menu,
   X,
   TrendingUp,
-  TrendingDown
+  TrendingDown,
+  Heart
 } from 'lucide-react';
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/dashboard/members', label: 'Members', icon: Users },
-  { href: '/dashboard/contributions', label: 'Contributions', icon: Wallet },
-  { href: '/dashboard/loans', label: 'Loans', icon: Banknote },
-  { href: '/dashboard/savings', label: 'Savings & Shares', icon: PiggyBank },
-  { href: '/dashboard/reports', label: 'Reports', icon: FileText },
-  { href: '/dashboard/meetings', label: 'Meetings', icon: Calendar },
-  { href: '/dashboard/settings', label: 'Settings', icon: Settings },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard.view' },
+  { href: '/dashboard/members', label: 'Members', icon: Users, permission: 'members.view' },
+  { href: '/dashboard/contributions', label: 'Contributions', icon: Wallet, permission: 'contributions.view' },
+  { href: '/dashboard/loans', label: 'Loans', icon: Banknote, permission: 'loans.view' },
+  { href: '/dashboard/savings', label: 'Savings & Shares', icon: PiggyBank, permission: 'savings.view' },
+  { href: '/dashboard/welfare', label: 'Welfare Fund', icon: Heart, permission: 'welfare.view' },
+  { href: '/dashboard/reports', label: 'Reports', icon: FileText, permission: 'reports.view' },
+  { href: '/dashboard/meetings', label: 'Meetings', icon: Calendar, permission: 'meetings.view' },
+  { href: '/dashboard/settings', label: 'Settings', icon: Settings, permission: 'settings.view' },
 ];
 
 export default function DashboardLayout({
@@ -40,15 +45,27 @@ export default function DashboardLayout({
   const router = useRouter();
   const pathname = usePathname();
   const { user, isAuthenticated, logout } = useStore();
+  const dispatch = useAppDispatch();
+  const { settings: groupSettings } = useAppSelector(state => state.group);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
+    dispatch(fetchGroupSettings());
+  }, [dispatch]);
+
+  useEffect(() => {
     if (!isAuthenticated) {
-      router.push('/');
+      router.replace('/');
     }
   }, [isAuthenticated, router]);
 
-  const handleLogout = () => {
+  const groupName = groupSettings?.groupName || 'Self Help Group';
+  const shortName = groupName.split(' ').slice(0, 2).join(' ');
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (e) {}
     logout();
     router.push('/');
   };
@@ -95,7 +112,7 @@ export default function DashboardLayout({
             </div>
             <div>
               <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1A1A1A' }}>
-                Githirioni SHG
+                {shortName}
               </div>
               <div style={{ fontSize: '0.75rem', color: '#6B6B6B' }}>
                 Management System
@@ -122,28 +139,29 @@ export default function DashboardLayout({
             const Icon = item.icon;
             const isActive = pathname === item.href;
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  padding: '10px 16px',
-                  fontSize: '0.875rem',
-                  fontWeight: 500,
-                  color: isActive ? '#228B22' : '#4A4A4A',
-                  background: isActive ? '#EBF5EB' : 'transparent',
-                  borderRadius: '6px',
-                  marginBottom: '4px',
-                  textDecoration: 'none',
-                  borderLeft: isActive ? '3px solid #228B22' : '3px solid transparent',
-                }}
-                onClick={() => setSidebarOpen(false)}
-              >
-                <Icon size={18} />
-                {item.label}
-              </Link>
+              <PermissionGuard key={item.href} permission={item.permission as any} fallback={null}>
+                <Link
+                  href={item.href}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '10px 16px',
+                    fontSize: '0.875rem',
+                    fontWeight: 500,
+                    color: isActive ? '#228B22' : '#4A4A4A',
+                    background: isActive ? '#EBF5EB' : 'transparent',
+                    borderRadius: '6px',
+                    marginBottom: '4px',
+                    textDecoration: 'none',
+                    borderLeft: isActive ? '3px solid #228B22' : '3px solid transparent',
+                  }}
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <Icon size={18} />
+                  {item.label}
+                </Link>
+              </PermissionGuard>
             );
           })}
         </nav>
@@ -246,28 +264,6 @@ export default function DashboardLayout({
           {children}
         </div>
       </main>
-
-      <style jsx>{`
-        @media (max-width: 1023px) {
-          aside {
-            transform: translateX(-100%) !important;
-          }
-          aside.sidebar {
-            transform: none !important;
-          }
-          main {
-            margin-left: 0 !important;
-          }
-          header button.lg\\:hidden {
-            display: block !important;
-          }
-        }
-        @media (min-width: 1024px) {
-          header button.lg\\:hidden {
-            display: none !important;
-          }
-        }
-      `}</style>
     </div>
   );
 }

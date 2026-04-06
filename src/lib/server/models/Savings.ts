@@ -4,8 +4,6 @@ const savingsSchema = new mongoose.Schema({
   member: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Member',
-    required: true,
-    unique: true,
   },
   savingsBalance: {
     type: Number,
@@ -19,8 +17,15 @@ const savingsSchema = new mongoose.Schema({
     type: Number,
     default: 1000,
   },
+  isGroup: {
+    type: Boolean,
+    default: false,
+  },
 }, {
   timestamps: true,
 });
+
+savingsSchema.index({ member: 1 }, { unique: true });
+savingsSchema.index({ isGroup: 1 });
 
 export const Savings = mongoose.models.Savings || mongoose.model('Savings', savingsSchema);

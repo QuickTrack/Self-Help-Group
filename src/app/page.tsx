@@ -1,35 +1,93 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from '../stores/useStore';
+import { useAppSelector, useAppDispatch } from '@/lib/store/hooks';
+import { fetchGroupSettings } from '@/lib/store/groupSlice';
 import { Leaf, Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export default function Home() {
   const router = useRouter();
-  const login = useStore((state) => state.login);
+  const dispatch = useAppDispatch();
+  const setUser = useStore((state) => state.setUser);
+  const isAuthenticated = useStore((state) => state.isAuthenticated);
+  const { settings: groupSettings } = useAppSelector(state => state.group);
+  const groupName = groupSettings?.groupName || 'Self Help Group';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  useEffect(() => {
+    dispatch(fetchGroupSettings());
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.replace('/dashboard');
+      return;
+    }
+    
+    const checkAuth = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const data = await res.json();
+          setUser(data.user);
+          router.replace('/dashboard');
+        }
+      } catch {}
+    };
+    
+    checkAuth();
+  }, [isAuthenticated, router]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
 
-    setTimeout(() => {
-      const success = login(email, password);
-      setIsLoading(false);
+    try {
+      const payload = { email, password };
+      console.log('Sending payload:', JSON.stringify(payload));
       
-      if (success) {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        credentials: 'include',
+      });
+
+      console.log('Response status:', response.status);
+      
+      const data = await response.json();
+      console.log('Response data:', JSON.stringify(data));
+
+      if (response.ok) {
+        setUser({
+          id: data.user.id,
+          email: data.user.email,
+          role: data.user.role,
+          permissionScope: data.user.permissionScope,
+          effectivePermissions: data.user.effectivePermissions,
+          member: data.user.member,
+        });
         router.push('/dashboard');
       } else {
-        setError('Invalid email or password. Try admin@githirioni.org / admin123');
+        setError(data.error || 'Invalid email or password');
       }
-    }, 500);
+    } catch (err) {
+      setError('Connection error. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  if (isAuthenticated) {
+    return null;
+  }
 
   return (
     <main style={{ 
@@ -62,7 +120,7 @@ export default function Home() {
               <Leaf size={40} />
             </div>
             <h1 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '16px' }}>
-              Githirioni Self Help Group
+              {groupName}
             </h1>
             <p style={{ fontSize: '1.125rem', opacity: 0.9, lineHeight: 1.6 }}>
               Building community financial strength through cooperation, transparency, and shared success.
@@ -255,14 +313,6 @@ export default function Home() {
           </div>
         </div>
       </div>
-
-      <style jsx>{`
-        @media (min-width: 1024px) {
-          .mobile-logo {
-            display: none;
-          }
-        }
-      `}</style>
     </main>
   );
 }
