@@ -329,12 +329,18 @@ export default function WelfarePage() {
   const [showRoleToggle, setShowRoleToggle] = useState(false);
 
   async function handleTreasurerAction(id: string, currentStatus: string) {
-    const payout = payouts.find(p => p._id === id);
-    if (payout) {
-      setSelectedPayoutForTreasurer(payout);
-      setTreasurerDecision('');
-      setTreasurerComments('');
-      setShowTreasurerModal(true);
+    if (currentStatus === 'Approved') {
+      handleTreasurerApprove(id);
+    } else if (currentStatus === 'Ready for Payment') {
+      handleMarkPaid(id);
+    } else {
+      const payout = payouts.find(p => p._id === id);
+      if (payout) {
+        setSelectedPayoutForTreasurer(payout);
+        setTreasurerDecision('');
+        setTreasurerComments('');
+        setShowTreasurerModal(true);
+      }
     }
   }
 
@@ -373,14 +379,6 @@ export default function WelfarePage() {
     } catch (error) {
       console.error('Error submitting treasurer decision:', error);
       alert('Failed to submit decision. Please try again.');
-    }
-  }
-
-  async function handleTreasurerAction(id: string, currentStatus: string) {
-    if (currentStatus === 'Approved') {
-      handleTreasurerApprove(id);
-    } else if (currentStatus === 'Ready for Payment') {
-      handleMarkPaid(id);
     }
   }
 
