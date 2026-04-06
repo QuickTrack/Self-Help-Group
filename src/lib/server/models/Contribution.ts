@@ -40,3 +40,8 @@ const contributionSchema = new mongoose.Schema({
 });
 
 export const Contribution = mongoose.models.Contribution || mongoose.model('Contribution', contributionSchema);
+
+contributionSchema.index({ member: 1, date: -1 });
+contributionSchema.index({ date: -1 });
+contributionSchema.index({ contributionType: 1 });
+contributionSchema.index({ createdAt: -1 });

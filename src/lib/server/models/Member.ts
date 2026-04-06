@@ -54,3 +54,8 @@ const memberSchema = new mongoose.Schema({
 });
 
 export const Member = mongoose.models.Member || mongoose.model('Member', memberSchema);
+
+memberSchema.index({ fullName: 'text', memberId: 'text', phoneNumber: 'text' });
+memberSchema.index({ status: 1 });
+memberSchema.index({ location: 1 });
+memberSchema.index({ createdAt: -1 });

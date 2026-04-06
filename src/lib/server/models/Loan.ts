@@ -82,3 +82,8 @@ loanSchema.pre('save', function (next) {
 });
 
 export const Loan = mongoose.models.Loan || mongoose.model('Loan', loanSchema);
+
+loanSchema.index({ member: 1, status: 1 });
+loanSchema.index({ status: 1 });
+loanSchema.index({ createdAt: -1 });
+loanSchema.index({ dueDate: 1 });
