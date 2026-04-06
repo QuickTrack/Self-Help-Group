@@ -30,6 +30,7 @@
 - [x] **Meetings Analysis panel** - Added dashboard panel showing meeting frequency, total meetings, average attendance, attendance rate, and attendee bar chart
 - [x] **Bonuses Analysis panel** - Added dashboard panel showing bonus distribution, total bonuses, recipients, average per person, and bonus trend line chart
 - [x] **Loan migration scripts** - Created SQL migration script for PostgreSQL and TypeScript migration script for MongoDB
+- [x] **Loans page now fetches from MongoDB** - Updated loans page to fetch loan data from `/api/loans` endpoint instead of local store
 
 ## Current Structure
 
@@ -100,3 +101,4 @@ npm run dev    # Start development server
 | 2026-04-06 | Edit Upcoming Meetings feature |
 | 2026-04-06 | Meetings Analysis and Bonuses Analysis panels on dashboard |
 | 2026-04-06 | Loan migration scripts (SQL + MongoDB) |
+| 2026-04-06 | Loans page fetches from MongoDB API |

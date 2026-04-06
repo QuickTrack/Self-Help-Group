@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useStore } from '../../../stores/useStore';
+import { PermissionGuard } from '@/components/PermissionGuard';
 import { 
   Banknote, 
   Search, 
@@ -13,11 +14,14 @@ import {
   X,
   Users
 } from 'lucide-react';
+import { MemberSearch } from '@/components/MemberSearch';
 
 const loanStatuses = ['Pending', 'Approved', 'Rejected', 'Disbursed', 'Paid'];
 
 export default function LoansPage() {
-  const { members, loans, addLoan, updateLoan } = useStore();
+  const { members } = useStore();
+  const [loans, setLoans] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -29,6 +33,25 @@ export default function LoansPage() {
     guarantor1: '',
     guarantor2: '',
   });
+
+  const fetchLoans = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/loans?limit=100');
+      const data = await res.json();
+      if (data.loans) {
+        setLoans(data.loans);
+      }
+    } catch (error) {
+      console.error('Failed to fetch loans:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLoans();
+  }, [fetchLoans]);
 
   const getMemberName = (id: string) => {
     const member = members.find((m: any) => m._id === id);
@@ -76,7 +99,7 @@ export default function LoansPage() {
     .filter((l: any) => l.status === 'Disbursed')
     .reduce((sum: number, l: any) => sum + (l.outstandingBalance || 0), 0);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     const principal = Number(formData.principalAmount);
@@ -86,23 +109,39 @@ export default function LoansPage() {
     const totalRepayable = principal + totalInterest;
     const installmentAmount = Math.round(totalRepayable / period);
 
-    const newLoan = {
-      _id: String(loans.length + 1),
-      member: formData.member,
-      principalAmount: principal,
-      interestRate: Number(formData.interestRate),
-      repaymentPeriod: period,
-      startDate: new Date(),
-      status: 'Pending',
-      guarantor1: formData.guarantor1 || undefined,
-      guarantor2: formData.guarantor2 || undefined,
-      installmentAmount,
-      totalInterest,
-      totalRepayable,
-      outstandingBalance: totalRepayable,
-      appliedBy: '1',
-    };
-    addLoan(newLoan);
+    if (!formData.member || !principal || !period) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/loans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          member: formData.member,
+          principalAmount: principal,
+          interestRate: Number(formData.interestRate),
+          repaymentPeriod: period,
+          guarantor1: formData.guarantor1 || undefined,
+          guarantor2: formData.guarantor2 || undefined,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setLoans((prev) => [data.loan, ...prev]);
+      } else {
+        const error = await res.json();
+        alert(error.error || 'Failed to apply for loan');
+        return;
+      }
+    } catch (error) {
+      console.error('Error applying for loan:', error);
+      alert('Failed to apply for loan');
+      return;
+    }
+
     setShowModal(false);
     setFormData({
       member: '',
@@ -114,12 +153,36 @@ export default function LoansPage() {
     });
   };
 
-  const handleApprove = (id: string) => {
-    updateLoan(id, { status: 'Approved', approvedBy: '1' });
+  const handleApprove = async (id: string) => {
+    try {
+      const res = await fetch('/api/loans', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action: 'approve' }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLoans((prev) => prev.map((l) => l._id === id ? data.loan : l));
+      }
+    } catch (error) {
+      console.error('Error approving loan:', error);
+    }
   };
 
-  const handleDisburse = (id: string) => {
-    updateLoan(id, { status: 'Disbursed', disbursedBy: '1' });
+  const handleDisburse = async (id: string) => {
+    try {
+      const res = await fetch('/api/loans', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action: 'disburse' }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLoans((prev) => prev.map((l) => l._id === id ? data.loan : l));
+      }
+    } catch (error) {
+      console.error('Error disbursing loan:', error);
+    }
   };
 
   const formatCurrency = (amount: number) => {
@@ -261,24 +324,28 @@ export default function LoansPage() {
                   <span className={`badge ${getStatusBadge(loan.status)}`}>
                     {loan.status}
                   </span>
-                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px' }}>
                     {loan.status === 'Pending' && (
                       <>
-                        <button
-                          onClick={() => handleApprove(loan._id)}
-                          className="btn btn-sm btn-primary"
-                        >
-                          Approve
-                        </button>
+                        <PermissionGuard permission="loans.approve" fallback={null}>
+                          <button
+                            onClick={() => handleApprove(loan._id)}
+                            className="btn btn-sm btn-primary"
+                          >
+                            Approve
+                          </button>
+                        </PermissionGuard>
                       </>
                     )}
                     {loan.status === 'Approved' && (
-                      <button
-                        onClick={() => handleDisburse(loan._id)}
-                        className="btn btn-sm btn-primary"
-                      >
-                        Disburse
-                      </button>
+                      <PermissionGuard permission="loans.disburse" fallback={null}>
+                        <button
+                          onClick={() => handleDisburse(loan._id)}
+                          className="btn btn-sm btn-primary"
+                        >
+                          Disburse
+                        </button>
+                      </PermissionGuard>
                     )}
                   </div>
                 </div>
@@ -312,17 +379,11 @@ export default function LoansPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div className="form-group">
                   <label className="input-label">Member *</label>
-                  <select
+                  <MemberSearch
                     value={formData.member}
-                    onChange={(e) => setFormData({ ...formData, member: e.target.value })}
-                    className="input select"
-                    required
-                  >
-                    <option value="">Select Member</option>
-                    {members.map((m: any) => (
-                      <option key={m._id} value={m._id}>{m.fullName} ({m.memberId})</option>
-                    ))}
-                  </select>
+                    onChange={(memberId) => setFormData({ ...formData, member: memberId })}
+                    placeholder="Search member by name, ID, or phone..."
+                  />
                 </div>
                 <div className="form-group">
                   <label className="input-label">Principal Amount (KES) *</label>
