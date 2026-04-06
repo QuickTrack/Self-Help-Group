@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Calendar, 
   Plus, 
@@ -9,8 +9,12 @@ import {
   MapPin,
   Users,
   Send,
-  Bell
+  Bell,
+  Fingerprint,
+  Camera,
+  Pencil
 } from 'lucide-react';
+import BiometricCheckIn from '@/components/BiometricCheckIn';
 
 const mockMeetings = [
   {
@@ -53,6 +57,10 @@ const mockAnnouncements = [
 export default function MeetingsPage() {
   const [showModal, setShowModal] = useState(false);
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
+  const [showCheckInModal, setShowCheckInModal] = useState(false);
+  const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
+  const [meetings, setMeetings] = useState<any[]>([]);
+  const [loadingMeetings, setLoadingMeetings] = useState(true);
   const [formData, setFormData] = useState({
     title: '',
     date: '',
@@ -65,9 +73,44 @@ export default function MeetingsPage() {
     message: '',
     priority: 'normal',
   });
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingMeeting, setEditingMeeting] = useState<any>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    const fetchMeetings = async () => {
+      try {
+        const res = await fetch('/api/meetings?limit=50');
+        const data = await res.json();
+        if (data.meetings?.length > 0) {
+          setMeetings(data.meetings);
+        } else {
+          setMeetings(mockMeetings);
+        }
+      } catch (error) {
+        console.error('Failed to load meetings:', error);
+        setMeetings(mockMeetings);
+      } finally {
+        setLoadingMeetings(false);
+      }
+    };
+    fetchMeetings();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    try {
+      const res = await fetch('/api/meetings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMeetings((prev) => [data.meeting, ...prev]);
+      }
+    } catch (error) {
+      console.error('Failed to create meeting:', error);
+    }
     setShowModal(false);
     setFormData({ title: '', date: '', time: '', location: '', agenda: '' });
   };
@@ -76,6 +119,41 @@ export default function MeetingsPage() {
     e.preventDefault();
     setShowAnnouncementModal(false);
     setAnnouncementData({ title: '', message: '', priority: 'normal' });
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMeeting) return;
+    try {
+      const res = await fetch(`/api/meetings/${editingMeeting._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMeetings((prev) => 
+          prev.map((m) => m._id === editingMeeting._id ? data.meeting : m)
+        );
+      }
+    } catch (error) {
+      console.error('Failed to update meeting:', error);
+    }
+    setShowEditModal(false);
+    setEditingMeeting(null);
+    setFormData({ title: '', date: '', time: '', location: '', agenda: '' });
+  };
+
+  const openEditModal = (meeting: any) => {
+    setEditingMeeting(meeting);
+    setFormData({
+      title: meeting.title || '',
+      date: meeting.date ? new Date(meeting.date).toISOString().split('T')[0] : '',
+      time: meeting.time || '',
+      location: meeting.location || '',
+      agenda: meeting.agenda || '',
+    });
+    setShowEditModal(true);
   };
 
   return (
@@ -98,8 +176,13 @@ export default function MeetingsPage() {
               Schedule
             </button>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {mockMeetings.map((meeting) => (
+<div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {loadingMeetings ? (
+              <p style={{ color: '#6B7280', textAlign: 'center', padding: '20px' }}>Loading...</p>
+            ) : meetings.length === 0 && (
+              <p style={{ color: '#6B7280', textAlign: 'center', padding: '20px' }}>No meetings scheduled</p>
+            )}
+            {meetings.map((meeting) => (
               <div
                 key={meeting._id}
                 style={{
@@ -109,7 +192,47 @@ export default function MeetingsPage() {
                   borderLeft: '3px solid #228B22',
                 }}
               >
-                <div style={{ fontWeight: 600, marginBottom: '8px' }}>{meeting.title}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                  <div style={{ fontWeight: 600 }}>{meeting.title}</div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => openEditModal(meeting)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '4px 10px',
+                        background: '#6B7280',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Pencil size={12} />
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => { setSelectedMeetingId(meeting._id); setShowCheckInModal(true); }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '4px 10px',
+                        background: '#228B22',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Fingerprint size={12} />
+                      Check-In
+                    </button>
+                  </div>
+                </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.875rem', color: '#6B6B6B' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <Calendar size={14} />
@@ -125,7 +248,7 @@ export default function MeetingsPage() {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <Users size={14} />
-                    {meeting.attendees.length} expected
+                    {meeting.attendees?.length || 0} expected
                   </div>
                 </div>
               </div>
@@ -300,6 +423,124 @@ export default function MeetingsPage() {
                 <button type="submit" className="btn btn-primary">Send</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showEditModal && editingMeeting && (
+        <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '20px',
+              borderBottom: '1px solid #E5E7EB'
+            }}>
+              <h3 style={{ fontSize: '1.125rem', fontWeight: 600 }}>Edit Meeting</h3>
+              <button onClick={() => setShowEditModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}>
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handleEditSubmit} style={{ padding: '20px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div className="form-group">
+                  <label className="input-label">Meeting Title *</label>
+                  <input
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    className="input"
+                    required
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
+                  <div className="form-group">
+                    <label className="input-label">Date *</label>
+                    <input
+                      type="date"
+                      value={formData.date}
+                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                      className="input"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="input-label">Time *</label>
+                    <input
+                      type="time"
+                      value={formData.time}
+                      onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                      className="input"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="input-label">Location *</label>
+                  <input
+                    type="text"
+                    value={formData.location}
+                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                    className="input"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="input-label">Agenda</label>
+                  <textarea
+                    value={formData.agenda}
+                    onChange={(e) => setFormData({ ...formData, agenda: e.target.value })}
+                    className="input"
+                    rows={3}
+                    placeholder="Meeting items..."
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '20px', justifyContent: 'flex-end' }}>
+                <button type="button" onClick={() => setShowEditModal(false)} className="btn btn-secondary">Cancel</button>
+                <button type="submit" className="btn btn-primary">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showCheckInModal && selectedMeetingId && (
+        <div className="modal-overlay" onClick={() => setShowCheckInModal(false)}>
+          <div 
+            className="modal-content" 
+            onClick={(e) => e.stopPropagation()} 
+            style={{ 
+              maxWidth: '900px', 
+              width: '95%',
+              maxHeight: '90vh',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '20px',
+              borderBottom: '1px solid #E5E7EB'
+            }}>
+              <div>
+                <h3 style={{ fontSize: '1.125rem', fontWeight: 600 }}>Biometric Check-In</h3>
+                <p style={{ fontSize: '0.75rem', color: '#6B7280' }}>Meeting ID: {selectedMeetingId}</p>
+              </div>
+              <button onClick={() => setShowCheckInModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}>
+                <X size={20} />
+              </button>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto', padding: '24px' }}>
+              <BiometricCheckIn 
+                meetingId={selectedMeetingId} 
+                onClose={() => setShowCheckInModal(false)} 
+              />
+            </div>
           </div>
         </div>
       )}
