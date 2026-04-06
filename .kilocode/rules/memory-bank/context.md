@@ -27,6 +27,8 @@
 - [x] **Attendance modal totals** - Displays total members, bonus per attendance, and total bonus amount in the attendance list modal, with auto-refresh every 10 seconds
 - [x] **Attendance Reports** - Created API at `/api/attendance/reports` with comprehensive attendance data including summary stats, meeting stats, check-in methods; added Attendance Report tab in Reports page
 - [x] **Edit Upcoming Meetings** - Added edit button and modal to each meeting card for updating meeting details; added PUT endpoint at `/api/meetings/[meetingId]`
+- [x] **Meetings Analysis panel** - Added dashboard panel showing meeting frequency, total meetings, average attendance, attendance rate, and attendee bar chart
+- [x] **Bonuses Analysis panel** - Added dashboard panel showing bonus distribution, total bonuses, recipients, average per person, and bonus trend line chart
 
 ## Current Structure
 
@@ -95,3 +97,4 @@ npm run dev    # Start development server
 | 2026-04-04 | Event Types management in Settings page |
 | 2026-04-04 | Life Event Types management in Settings page |
 | 2026-04-06 | Edit Upcoming Meetings feature |
+| 2026-04-06 | Meetings Analysis and Bonuses Analysis panels on dashboard |
