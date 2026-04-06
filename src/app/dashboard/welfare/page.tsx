@@ -39,6 +39,15 @@ const statusColors: Record<string, string> = {
   Cancelled: 'bg-gray-100 text-gray-800',
 };
 
+const statusLabels: Record<string, string> = {
+  Pending: 'Pending',
+  Approved: 'Admin Approved',
+  'Ready for Payment': 'Ready for Payment',
+  Rejected: 'Rejected',
+  Paid: 'Paid',
+  Cancelled: 'Cancelled',
+};
+
 interface WelfareStats {
   fundBalance: number;
   totalContributions: number;
@@ -551,7 +560,7 @@ export default function WelfarePage() {
                       </td>
                       <td className="py-2">
                         <span className={`px-2 py-1 rounded text-xs ${statusColors[p.status] || 'bg-gray-100'}`}>
-                          {p.status}
+                          {statusLabels[p.status] || p.status}
                         </span>
                       </td>
                       <td className="py-2">
