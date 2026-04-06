@@ -1,18 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useStore } from '../../../stores/useStore';
+import { PermissionGuard } from '@/components/PermissionGuard';
 import { 
   PiggyBank, 
   Search, 
   Plus, 
   X,
   TrendingUp,
-  Wallet
+  Wallet,
+  RefreshCw
 } from 'lucide-react';
 
 export default function SavingsPage() {
-  const { members, savings } = useStore();
+  const { members } = useStore();
+  const [savings, setSavings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({
@@ -21,13 +25,39 @@ export default function SavingsPage() {
     type: 'deposit',
   });
 
-  const getMemberName = (id: string) => {
-    const member = members.find((m: any) => m._id === id);
-    return member?.fullName || 'Unknown';
+  const fetchSavings = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/savings?limit=100');
+      const data = await res.json();
+      if (data.savings) {
+        setSavings(data.savings);
+      }
+    } catch (error) {
+      console.error('Failed to fetch savings:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSavings();
+  }, [fetchSavings]);
+
+  const getMemberName = (memberData: any) => {
+    if (!memberData) return 'Unknown';
+    if (typeof memberData === 'string') {
+      const member = members.find((m: any) => m._id === memberData);
+      return member?.fullName || 'Unknown';
+    }
+    return memberData.fullName || 'Unknown';
   };
 
   const getSavings = (memberId: string) => {
-    const s = savings.find((s: any) => s.member === memberId);
+    const s = savings.find((s: any) => {
+      const sMemberId = typeof s.member === 'object' ? s.member?._id : s.member;
+      return sMemberId === memberId || s.member === memberId;
+    });
     return s || { savingsBalance: 0, totalShares: 0 };
   };
 
@@ -39,11 +69,62 @@ export default function SavingsPage() {
   const filteredMembers = enrichedMembers.filter((m: any) => {
     return !searchTerm || 
       m.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      m.memberId.toLowerCase().includes(searchTerm.toLowerCase());
+      (m.memberId || '').toLowerCase().includes(searchTerm.toLowerCase());
   });
 
-  const totalSavings = savings.reduce((sum: number, s: any) => sum + s.savingsBalance, 0);
-  const totalShares = savings.reduce((sum: number, s: any) => sum + s.totalShares, 0);
+  const memberSavings = savings.filter((s: any) => !s.isGroup);
+  const totalSavings = memberSavings.reduce((sum: number, s: any) => sum + (s.savingsBalance || 0), 0);
+  const totalShares = memberSavings.reduce((sum: number, s: any) => sum + (s.totalShares || 0), 0);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.member || !formData.amount) {
+      alert('Please select a member and enter an amount');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/savings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          member: formData.member,
+          amount: Number(formData.amount),
+          type: formData.type,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.savings) {
+          setSavings((prev) => {
+            const filtered = prev.filter((s: any) => {
+              const sMemberId = typeof s.member === 'object' ? s.member?._id : s.member;
+              const newMemberId = typeof data.savings.member === 'object' ? data.savings.member?._id : data.savings.member;
+              return sMemberId !== newMemberId;
+            });
+            return [data.savings, ...filtered];
+          });
+        }
+      } else {
+        const error = await res.json();
+        alert(error.error || 'Failed to process savings');
+        return;
+      }
+    } catch (error) {
+      console.error('Error processing savings:', error);
+      alert('Failed to process savings');
+      return;
+    }
+
+    setShowModal(false);
+    setFormData({
+      member: '',
+      amount: '',
+      type: 'deposit',
+    });
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-KE', {
@@ -149,10 +230,17 @@ export default function SavingsPage() {
               style={{ paddingLeft: '40px', width: '240px', height: '40px' }}
             />
           </div>
-          <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-            <Plus size={16} />
-            Add Transaction
-          </button>
+          <PermissionGuard permission="savings.addTransaction" fallback={
+            <button className="btn btn-primary" disabled style={{ opacity: 0.5 }}>
+              <Plus size={16} />
+              Add Transaction
+            </button>
+          }>
+            <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+              <Plus size={16} />
+              Add Transaction
+            </button>
+          </PermissionGuard>
         </div>
 
         <table className="table">
@@ -211,7 +299,7 @@ export default function SavingsPage() {
                 <X size={20} />
               </button>
             </div>
-            <form onSubmit={(e) => { e.preventDefault(); setShowModal(false); }} style={{ padding: '20px' }}>
+            <form onSubmit={handleSubmit} style={{ padding: '20px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div className="form-group">
                   <label className="input-label">Member *</label>
