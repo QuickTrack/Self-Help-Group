@@ -32,9 +32,11 @@ interface EventTypeOption {
 
 const statusColors: Record<string, string> = {
   Pending: 'bg-yellow-100 text-yellow-800',
+  'Pending Review': 'bg-orange-100 text-orange-800',
   Approved: 'bg-green-100 text-green-800',
+  'Ready for Payment': 'bg-blue-100 text-blue-800',
   Rejected: 'bg-red-100 text-red-800',
-  Paid: 'bg-blue-100 text-blue-800',
+  Paid: 'bg-purple-100 text-purple-800',
   Cancelled: 'bg-gray-100 text-gray-800',
 };
 
@@ -502,9 +504,11 @@ export default function WelfarePage() {
               >
                 <option value="">All Status</option>
                 <option value="Pending">Pending</option>
-                <option value="Approved">Approved</option>
+                <option value="Approved">Approved (Admin)</option>
+                <option value="Ready for Payment">Ready for Payment</option>
                 <option value="Rejected">Rejected</option>
                 <option value="Paid">Paid</option>
+                <option value="Cancelled">Cancelled</option>
               </select>
             </div>
             <table className="w-full">

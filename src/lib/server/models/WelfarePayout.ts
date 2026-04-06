@@ -24,7 +24,7 @@ const welfarePayoutSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['Pending', 'Approved', 'Rejected', 'Paid', 'Cancelled'],
+    enum: ['Pending', 'Pending Review', 'Approved', 'Ready for Payment', 'Rejected', 'Paid', 'Cancelled'],
     default: 'Pending',
   },
   eligibilityCheck: {

@@ -10,6 +10,7 @@ interface StatusBadgeProps {
 const statusConfig: Record<string, { className: string; label: string }> = {
   Disbursed: { className: 'badge-error', label: 'Disbursed' },
   Approved: { className: 'badge-success', label: 'Approved' },
+  'Ready for Payment': { className: 'badge-success', label: 'Ready for Payment' },
   Rejected: { className: 'badge-error', label: 'Rejected' },
   Paid: { className: 'badge-success', label: 'Paid' },
   Pending: { className: 'badge-warning', label: 'Pending' },
