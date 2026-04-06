@@ -48,7 +48,6 @@ export default function DashboardLayout({
   const dispatch = useAppDispatch();
   const { settings: groupSettings } = useAppSelector(state => state.group);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [isHoveringEdge, setIsHoveringEdge] = useState(false);
 
   useEffect(() => {
     dispatch(fetchGroupSettings());
@@ -76,57 +75,8 @@ export default function DashboardLayout({
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#F8FAF8' }}>
-      {/* Hover trigger zone - only visible on desktop */}
-      <div 
-        className="sidebar-hover-zone"
-        onMouseEnter={() => setIsHoveringEdge(true)}
-        onMouseLeave={() => setIsHoveringEdge(false)}
-        style={{
-          position: 'fixed',
-          left: 0,
-          top: 0,
-          bottom: 0,
-          width: '20px',
-          zIndex: 40,
-          cursor: 'ew-resize',
-        }}
-      />
-      
-      {/* Hover indicator - shows when hovering near edge */}
-      {isHoveringEdge && (
-        <div 
-          className="sidebar-hover-indicator"
-          style={{
-            position: 'fixed',
-            left: 0,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            width: '4px',
-            height: '60px',
-            background: '#228B22',
-            borderRadius: '0 4px 4px 0',
-            zIndex: 45,
-            opacity: 0.8,
-            transition: 'opacity 150ms ease',
-          }}
-        />
-      )}
-
-      <aside style={{
-        position: 'fixed',
-        left: 0,
-        top: 0,
-        bottom: 0,
-        width: '280px',
-        background: 'white',
-        borderRight: '1px solid #E5E7EB',
-        display: 'flex',
-        flexDirection: 'column',
-        zIndex: 50,
-        transform: (sidebarOpen || isHoveringEdge) ? 'translateX(0)' : 'translateX(-100%)',
-        transition: 'transform 200ms ease-out',
-      }} className="sidebar">
+    <div className="dashboard-container" style={{ display: 'flex', minHeight: '100vh', background: '#F8FAF8' }}>
+      <aside className="sidebar-hover-sidebar">
         <div style={{
           padding: '20px 24px',
           borderBottom: '1px solid #E5E7EB',
@@ -229,7 +179,7 @@ export default function DashboardLayout({
         </div>
       </aside>
 
-      {(sidebarOpen || isHoveringEdge) && (
+      {sidebarOpen && (
         <div 
           style={{
             position: 'fixed',
@@ -237,15 +187,15 @@ export default function DashboardLayout({
             background: 'rgba(0,0,0,0.5)',
             zIndex: 40,
           }}
-          onClick={() => { setSidebarOpen(false); setIsHoveringEdge(false); }}
+          onClick={() => setSidebarOpen(false)}
         />
       )}
 
       <main style={{
         flex: 1,
-        marginLeft: (sidebarOpen || isHoveringEdge) ? '280px' : '0',
+        marginLeft: sidebarOpen ? '280px' : '0',
         minHeight: '100vh',
-        transition: 'margin-left 200ms ease-out',
+        transition: 'margin-left 150ms ease-out',
       }} className="main-content">
         <header style={{
           height: '64px',
@@ -261,14 +211,7 @@ export default function DashboardLayout({
         }}>
           <button 
             onClick={() => setSidebarOpen(true)}
-            style={{
-              display: 'block',
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              padding: '8px'
-            }}
-            className="lg:hidden"
+            className="mobile-menu-btn"
           >
             <Menu size={24} />
           </button>
