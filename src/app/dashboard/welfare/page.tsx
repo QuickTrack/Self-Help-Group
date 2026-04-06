@@ -706,7 +706,7 @@ export default function WelfarePage() {
                         )}
                         {p.status === 'Ready for Payment' && !isTreasurer && (
                           <span className="text-blue-600 text-sm">
-                            Awaiting Payment
+                            Ready for Payment
                           </span>
                         )}
                       </td>

@@ -306,17 +306,50 @@ export async function PATCH(request: Request) {
     
     if (action === 'approve-admin') {
       // Stage 1: Administrator approval
+      let needsTreasurerApproval = false;
+      
       if (!overrideEligible) {
         const eligibility = await verifyMemberEligibility(payout.member.toString());
         
         if (!eligibility.isEligible) {
-          return NextResponse.json({ 
-            error: 'Member does not meet eligibility requirements',
-            eligibilityDetails: eligibility
-          }, { status: 400 });
+          needsTreasurerApproval = true;
         }
+        
+        if (!needsTreasurerApproval && eligibility.isEligible) {
+          // No eligibility issues - skip treasurer approval, go directly to Ready for Payment
+          const settings = await getEligibilitySettings();
+          const limitKey = `limit${payout.eventType}`;
+          const maxLimit = settings[limitKey] || EVENT_LIMITS[payout.eventType] || 10000;
+          const amount = approvedAmount || Math.min(payout.requestedAmount, maxLimit);
+          
+          payout.status = 'Ready for Payment';
+          payout.approvedAmount = amount;
+          payout.approvedByName = 'Administrator';
+          payout.approvedAt = new Date();
+          
+          // Add to audit log
+          payout.auditLog = payout.auditLog || [];
+          payout.auditLog.push({
+            action: 'Admin Approval - Auto Approved',
+            performedBy: 'Administrator',
+            performedAt: new Date(),
+            comments: 'No eligibility issues - automatically approved',
+            details: { eligible: true, approvedAmount: amount },
+          });
+          
+          await payout.save();
+          
+          const populated = await WelfarePayout.findById(id)
+            .populate('member', 'memberId fullName');
+          
+          return NextResponse.json(populated);
+        }
+      } else {
+        // Admin used override - requires treasurer approval
+        needsTreasurerApproval = true;
       }
 
+      // If we reach here, there are eligibility issues or override was used
       const settings = await getEligibilitySettings();
       const limitKey = `limit${payout.eventType}`;
       const maxLimit = settings[limitKey] || EVENT_LIMITS[payout.eventType] || 10000;
@@ -335,11 +368,11 @@ export async function PATCH(request: Request) {
       // Add to audit log
       payout.auditLog = payout.auditLog || [];
       payout.auditLog.push({
-        action: 'Admin Approval',
+        action: 'Admin Approval - Requires Treasurer',
         performedBy: 'Administrator',
         performedAt: new Date(),
-        comments: adminApprovalReason,
-        details: { overrideEligible, approvedAmount: amount },
+        comments: adminApprovalReason || 'Eligibility issues - requires treasurer approval',
+        details: { overrideEligible, needsTreasurerApproval, approvedAmount: amount },
       });
     } else if (action === 'treasurer-decision') {
       // Stage 2: Treasurer decision (approve with override or reject)
