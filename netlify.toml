@@ -1,0 +1,14 @@
+# Netlify Configuration
+[build]
+  # Tell Netlify to run the build command
+  command = "npm run build"
+  # Directory to deploy (Next.js output directory)
+  publish = ".next"
+
+# Define serverless functions directory
+[functions]
+  directory = "netlify/functions"
+
+# Optional: Configure Node version
+[build.environment]
+  node_version = "20"

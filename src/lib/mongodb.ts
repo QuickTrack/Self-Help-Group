@@ -2,7 +2,7 @@ export type { Document } from 'mongodb';
 export { MongoClient, Db, Collection } from 'mongodb';
 import { MongoClient, Db, Collection, Document } from 'mongodb';
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://Boniface:nb9ms2AYs7mBH.N@cluster0.szukiim.mongodb.net/?appName=Cluster0';
 const DB_NAME = process.env.DB_NAME || 'githirioni-shg';
 
 interface MongoDBConnection {
