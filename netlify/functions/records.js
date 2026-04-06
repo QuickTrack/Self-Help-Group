@@ -13,9 +13,9 @@
 // Import the MongoDB driver - using native mongodb driver for better performance
 const { MongoClient, ObjectId } = require('mongodb');
 
-// MongoDB Atlas connection string - stored as environment variable for security
-// Format: mongodb://user:pass@host1:27017,host2:27017,host3:27017/db?options
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://Boniface:nb9ms2AYs7mBH.N@ac-vqlqxji-shard-00-00.szukiim.mongodb.net:27017,ac-vqlqxji-shard-00-01.szukiim.mongodb.net:27017,ac-vqlqxji-shard-00-02.szukiim.mongodb.net:27017/githirioni-shg?authSource=admin&tls=true&replicaSet=atlas-shard-0&retryWrites=true&retryReads=true';
+// MongoDB Atlas connection string - MUST be set as Netlify environment variable
+// Set MONGODB_URI in Netlify dashboard: Site settings → Environment
+const MONGODB_URI = process.env.MONGODB_URI;
 
 // Database name
 const DB_NAME = 'githirioni-shg';

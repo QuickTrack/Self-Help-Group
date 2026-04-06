@@ -28,16 +28,7 @@ The `netlify.toml` file has been created in the project root with the following 
 
 ## Step 2: Set Up Environment Variables
 
-**Important:** The connection string is already configured to use the direct replica set format for better compatibility:
-
-```
-MONGODB_URI=mongodb://Boniface:nb9ms2AYs7mBH.N@ac-vqlqxji-shard-00-00.szukiim.mongodb.net:27017,ac-vqlqxji-shard-00-01.szukiim.mongodb.net:27017,ac-vqlqxji-shard-00-02.szukiim.mongodb.net:27017/githirioni-shg?authSource=admin&tls=true&replicaSet=atlas-shard-0&retryWrites=true&retryReads=true
-```
-
-Or you can use the SRV format:
-```
-mongodb+srv://Boniface:nb9ms2AYs7mBH.N@cluster0.szukiim.mongodb.net/?appName=Cluster0
-```
+**Important:** Add your MongoDB Atlas connection string as a Netlify environment variable.
 
 ### Option A: Via Netlify Dashboard
 
@@ -46,7 +37,7 @@ mongodb+srv://Boniface:nb9ms2AYs7mBH.N@cluster0.szukiim.mongodb.net/?appName=Clu
 3. Go to **Site settings** → **Environment Variables**
 4. Add a new variable:
    - **Key:** `MONGODB_URI`
-   - **Value:** `mongodb+srv://Boniface:nb9ms2AYs7mBH.N@cluster0.szukiim.mongodb.net/?appName=Cluster0`
+   - **Value:** Your MongoDB Atlas connection string
 
 ### Option B: Via Netlify CLI
 
@@ -57,8 +48,8 @@ npm install -g netlify-cli
 # Login to Netlify
 netlify login
 
-# Set environment variable
-netlify env:set MONGODB_URI "mongodb+srv://Boniface:nb9ms2AYs7mBH.N@cluster0.szukiim.mongodb.net/?appName=Cluster0"
+# Set environment variable (use your actual connection string)
+netlify env:set MONGODB_URI "your-mongodb-connection-string-here"
 ```
 
 ## Step 3: Deploy to Netlify
