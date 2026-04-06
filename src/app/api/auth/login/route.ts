@@ -9,7 +9,11 @@ import type { Permission } from '@/types';
 
 export async function POST(request: NextRequest) {
   try {
-    const clientIp = request.headers.get('x-forwarded-for') || request.ip || 'unknown';
+    const clientIp =
+      request.headers.get('x-forwarded-for') ??
+      request.headers.get('x-real-ip') ??
+      request.headers.get('cf-connecting-ip') ??
+      'unknown';
     if (!checkRateLimit(clientIp)) {
       return NextResponse.json(
         { error: 'Too many requests. Please try again later.' },
