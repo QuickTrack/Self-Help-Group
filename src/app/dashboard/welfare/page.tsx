@@ -319,6 +319,16 @@ export default function WelfarePage() {
     alert('Awaiting Treasurer authorization. The Treasurer will review and authorize this payout for payment.');
   }
 
+  const isTreasurer = true; // TODO: Get from user role
+
+  async function handleTreasurerAction(id: string, currentStatus: string) {
+    if (currentStatus === 'Approved') {
+      handleTreasurerApprove(id);
+    } else if (currentStatus === 'Ready for Payment') {
+      handleMarkPaid(id);
+    }
+  }
+
   async function handleRejectPayout(id: string, reason: string) {
     try {
       const res = await fetch('/api/welfare/payout', {
@@ -609,13 +619,34 @@ export default function WelfarePage() {
                             </button>
                           </div>
                         )}
-                        {p.status === 'Approved' && (
+                        {p.status === 'Approved' && isTreasurer && (
+                          <button
+                            onClick={() => handleTreasurerAction(p._id, p.status)}
+                            className="text-blue-600 hover:text-blue-800 text-sm"
+                          >
+                            Approve (Treasurer)
+                          </button>
+                        )}
+                        {p.status === 'Approved' && !isTreasurer && (
                           <button
                             onClick={() => handleAdminClickWhenAlreadyApproved()}
                             className="text-yellow-600 hover:text-yellow-800 text-sm"
                           >
                             Awaiting Treasurer
                           </button>
+                        )}
+                        {p.status === 'Ready for Payment' && isTreasurer && (
+                          <button
+                            onClick={() => handleMarkPaid(p._id)}
+                            className="text-purple-600 hover:text-purple-800 text-sm"
+                          >
+                            Mark as Paid
+                          </button>
+                        )}
+                        {p.status === 'Ready for Payment' && !isTreasurer && (
+                          <span className="text-blue-600 text-sm">
+                            Awaiting Payment
+                          </span>
                         )}
                       </td>
                     </tr>
