@@ -49,10 +49,10 @@ export async function POST(
 
     const session = await mongoose.startSession();
     
-    let payout: PayoutDoc[] = [];
+    let payout: any = null;
     try {
       await session.withTransaction(async () => {
-        payout = await WelfarePayout.create([{
+        payout = await WelfarePayout.create({
           memberId,
           requestedAmount: bonusAmount,
           approvedAmount: bonusAmount,
@@ -60,11 +60,11 @@ export async function POST(
           eventType: 'Meeting Attendance Bonus',
           meetingId,
           paidAt: new Date(),
-        }], { session }) as PayoutDoc[];
+        }, { session });
 
         attendance.bonusAllocated = true;
         attendance.bonusAmount = bonusAmount;
-        attendance.bonusId = payout[0]._id;
+        attendance.bonusId = payout._id;
         attendance.processedAt = new Date();
         await attendance.save({ session });
       });
@@ -72,7 +72,7 @@ export async function POST(
       session.endSession();
     }
 
-    const payoutId = payout.length > 0 ? payout[0]._id.toString() : null;
+    const payoutId = payout?._id?.toString() ?? null;
 
     return NextResponse.json({
       bonusId: payoutId,
