@@ -271,7 +271,7 @@ export default function WelfarePage() {
             }
           }
         } else {
-          alert(data.error || 'Failed to approve payout');
+          alert(data.error || data.details || 'Failed to approve payout');
         }
         return;
       }
@@ -279,6 +279,7 @@ export default function WelfarePage() {
       loadData();
     } catch (error) {
       console.error('Error approving payout:', error);
+      alert('Failed to approve payout. Please try again.');
     }
   }
 

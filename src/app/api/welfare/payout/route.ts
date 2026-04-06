@@ -365,6 +365,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json(populated);
   } catch (error) {
     console.error('Error updating welfare payout:', error);
-    return NextResponse.json({ error: 'Failed to update payout' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: 'Failed to update payout', details: message }, { status: 500 });
   }
 }
