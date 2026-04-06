@@ -87,10 +87,6 @@ export default function WelfarePage() {
   const [payoutError, setPayoutError] = useState<string | null>(null);
   const [selectedPayoutDetails, setSelectedPayoutDetails] = useState<any>(null);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
   const loadData = useCallback(async () => {
     try {
       const [contribRes, payoutRes, eventTypesRes] = await Promise.all([
@@ -146,6 +142,10 @@ export default function WelfarePage() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   async function handleAddContribution(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
