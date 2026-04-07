@@ -41,6 +41,7 @@
   - Created comprehensive documentation in `docs/BIOMETRIC_SYSTEM.md`
 - [x] **Hover-triggered sidebar fix** - Fixed sidebar to only show when cursor is in the left 15px edge zone, added pointerEvents to prevent interference
 - [x] **Allow ineligible payout submissions** - Added `allowIneligibleSubmissions` setting (default: true) to allow welfare payout requests to be submitted even when member does not meet eligibility requirements
+- [x] **Biometric fix** - Fixed face enrollment to use base64 images (not face descriptors) and added fallback image matching for verification
 
 ## Current Structure
 

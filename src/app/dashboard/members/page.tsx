@@ -29,6 +29,7 @@ export default function MembersPage() {
   const [showBiometricModal, setShowBiometricModal] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [biometricEnrolled, setBiometricEnrolled] = useState<string[]>([]);
+  const [biometricSuccess, setBiometricSuccess] = useState(false);
   const [formData, setFormData] = useState({
     fullName: '',
     idNumber: '',
@@ -586,7 +587,7 @@ export default function MembersPage() {
       )}
 
       {showBiometricModal && selectedMemberId && (
-        <div className="modal-overlay" onClick={() => setShowBiometricModal(false)}>
+        <div className="modal-overlay" onClick={() => { setShowBiometricModal(false); setBiometricSuccess(false); }}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
             <div style={{
               display: 'flex',
@@ -599,18 +600,36 @@ export default function MembersPage() {
                 Biometric Enrollment
               </h3>
               <button
-                onClick={() => setShowBiometricModal(false)}
+                onClick={() => { setShowBiometricModal(false); setBiometricSuccess(false); }}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
               >
                 <X size={20} />
               </button>
             </div>
+            {biometricSuccess && (
+              <div style={{
+                margin: '16px',
+                padding: '12px 16px',
+                background: '#DCFCE7',
+                borderRadius: '8px',
+                color: '#16A34A',
+                fontSize: '0.875rem',
+                fontWeight: 500,
+                textAlign: 'center',
+              }}>
+                Biometrics saved successfully!
+              </div>
+            )}
             <BiometricEnrollment
               memberId={selectedMemberId}
               onComplete={(success, enrolledTypes) => {
                 if (success) {
                   setBiometricEnrolled(enrolledTypes);
-                  setShowBiometricModal(false);
+                  setBiometricSuccess(true);
+                  setTimeout(() => {
+                    setShowBiometricModal(false);
+                    setBiometricSuccess(false);
+                  }, 1500);
                 }
               }}
             />
