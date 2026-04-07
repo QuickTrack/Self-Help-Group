@@ -291,10 +291,10 @@ export async function POST(
         timestamp: attendance.verifiedAt?.toISOString(),
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('[Biometric] Verification error:', error);
     return NextResponse.json(
-      { verified: false, error: 'Verification service unavailable. Contact admin.' },
+      { verified: false, error: error?.message || 'Verification service unavailable. Contact admin.' },
       { status: 500 }
     );
   }
