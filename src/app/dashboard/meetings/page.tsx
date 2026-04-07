@@ -537,6 +537,7 @@ export default function MeetingsPage() {
             </div>
             <div style={{ flex: 1, overflow: 'auto', padding: '24px' }}>
               <BiometricCheckIn 
+                key={selectedMeetingId}
                 meetingId={selectedMeetingId} 
                 onClose={() => setShowCheckInModal(false)} 
               />

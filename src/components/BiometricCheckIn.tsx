@@ -263,6 +263,7 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
       setScanMode('scanning');
       setErrorMessage(null);
       await startCamera();
+      await new Promise(resolve => setTimeout(resolve, 500));
     } else {
       setScanMode('scanning');
       setErrorMessage(null);
@@ -551,14 +552,17 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
                   borderRadius: '12px',
                   overflow: 'hidden',
                   border: '2px solid #228B22',
-                  background: '#000'
+                  background: '#1a1a1a'
                 }}>
                   <video
                     ref={videoRef}
                     autoPlay
                     playsInline
                     muted
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    loop
+                    width="240"
+                    height="180"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                   />
                   <div style={{
                     position: 'absolute',
