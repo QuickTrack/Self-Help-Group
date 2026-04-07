@@ -10,7 +10,6 @@ import {
   X,
   RefreshCw,
   Users,
-  DollarSign,
   Clock,
   AlertCircle,
   User,
@@ -93,8 +92,6 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
   const [biometricType, setBiometricType] = useState<'face' | 'fingerprint'>('face');
   const [deviceId] = useState(() => `device-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [cameraLoading, setCameraLoading] = useState(false);
-  const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Member[]>([]);
   const [searching, setSearching] = useState(false);
@@ -123,6 +120,12 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
   const [selectedAttendance, setSelectedAttendance] = useState<AttendanceRecord | null>(null);
   const [processingPayment, setProcessingPayment] = useState(false);
   const [attendanceSearch, setAttendanceSearch] = useState('');
+
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const isCameraReady = useRef(false);
 
   useEffect(() => {
     const loadMembers = async () => {
@@ -161,26 +164,6 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
   const alreadyCheckedIn = useMemo(() => {
     return new Set(attendanceList.map(a => a.memberId));
   }, [attendanceList]);
-
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const pollingRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    if (videoStream && videoRef.current) {
-      videoRef.current.srcObject = videoStream;
-      videoRef.current.play().then(() => console.log('Video playing via useEffect')).catch(console.error);
-    }
-  }, [videoStream]);
-
-  useEffect(() => {
-    return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(t => t.stop());
-      }
-    };
-  }, []);
 
   const fetchAttendance = useCallback(async () => {
     try {
@@ -225,75 +208,67 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
     return () => clearInterval(interval);
   }, []);
 
-  const startCamera = async () => {
-    setCameraLoading(true);
+  const initializeCamera = useCallback(async () => {
+    if (streamRef.current) return;
+    
     try {
-      console.log('Requesting camera access...');
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: 320, height: 240 }
       });
-      console.log('Camera stream obtained:', stream.id, 'tracks:', stream.getTracks().length);
       streamRef.current = stream;
-      setVideoStream(stream);
       
       if (videoRef.current) {
-        console.log('Setting video source...');
         videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
-          console.log('Metadata loaded, video dimensions:', videoRef.current?.videoWidth, videoRef.current?.videoHeight);
-          videoRef.current?.play().catch(e => console.error('Play error:', e));
-        };
-        videoRef.current.onplay = () => console.log('Video started playing');
-        videoRef.current.onerror = (e) => console.error('Video error:', e);
+        await videoRef.current.play();
+        isCameraReady.current = true;
       }
     } catch (error: any) {
-      console.error('Error accessing camera:', error);
-      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-        setManualMode(true);
-        setScanMode('idle');
-      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
-        setManualMode(true);
-        setScanMode('idle');
-      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
-        setErrorMessage('Camera is in use by another application. Please close other apps using the camera.');
-      } else {
-        setManualMode(true);
-        setScanMode('idle');
-      }
-    } finally {
-      setCameraLoading(false);
+      console.error('Camera error:', error);
+      setManualMode(true);
+      setScanMode('idle');
     }
-  };
+  }, []);
 
-  const stopCamera = () => {
+  const stopCamera = useCallback(() => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
+      isCameraReady.current = false;
     }
-  };
+  }, []);
 
-  const captureImage = (): string | null => {
-    if (!videoRef.current || !canvasRef.current) return null;
+  const captureImage = useCallback((): string | null => {
+    if (!videoRef.current || !canvasRef.current) {
+      console.log('No video or canvas ref');
+      return null;
+    }
+    
+    const video = videoRef.current;
+    if (video.readyState !== 4) {
+      console.log('Video not ready:', video.readyState);
+      return null;
+    }
     
     const context = canvasRef.current.getContext('2d');
-    if (!context) return null;
+    if (!context) {
+      console.log('No canvas context');
+      return null;
+    }
     
-    canvasRef.current.width = videoRef.current.videoWidth;
-    canvasRef.current.height = videoRef.current.videoHeight;
-    context.drawImage(videoRef.current, 0, 0);
+    canvasRef.current.width = video.videoWidth || 320;
+    canvasRef.current.height = video.videoHeight || 240;
+    context.drawImage(video, 0, 0);
     
-    return canvasRef.current.toDataURL('image/jpeg', 0.8).split(',')[1];
-  };
+    const dataUrl = canvasRef.current.toDataURL('image/jpeg', 0.7);
+    return dataUrl.split(',')[1];
+  }, []);
 
   const handleStartScan = async () => {
+    setScanMode('scanning');
+    setErrorMessage(null);
+    
     if (biometricType === 'face') {
-      setScanMode('scanning');
-      setErrorMessage(null);
-      await startCamera();
-      await new Promise(resolve => setTimeout(resolve, 500));
-    } else {
-      setScanMode('scanning');
-      setErrorMessage(null);
+      await initializeCamera();
     }
   };
 
@@ -305,17 +280,18 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
       let biometricData = '';
       
       if (biometricType === 'face') {
-        console.log('Capturing image...', videoRef.current?.readyState);
+        if (!isCameraReady.current) {
+          throw new Error('Camera not ready. Please try again.');
+        }
+        
         biometricData = captureImage() || '';
-        console.log('Captured:', biometricData ? `yes (${biometricData.length} chars)` : 'no');
         if (!biometricData) {
-          throw new Error('Failed to capture image - camera may not be ready');
+          throw new Error('Failed to capture image. Please ensure camera is working.');
         }
       } else {
         biometricData = `fingerprint-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       }
 
-      console.log('Sending verification request...');
       const response = await fetch(`/api/meetings/${meetingId}/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -328,6 +304,7 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
       });
 
       const data = await response.json();
+      console.log('Verify response:', data);
 
       setAuditLogs(prev => [{
         timestamp: new Date().toISOString(),
@@ -348,13 +325,14 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
         setErrorMessage(data.error || 'Verification failed. Please try again.');
         setScanMode('failed');
       }
-    } catch (error) {
-      setErrorMessage('Verification service unavailable. Contact admin.');
+    } catch (error: any) {
+      console.error('Verification error:', error);
+      setErrorMessage(error.message || 'Verification service unavailable. Contact admin.');
       setScanMode('failed');
     }
 
     if (biometricType === 'face') {
-      setTimeout(stopCamera, 1000);
+      stopCamera();
     }
   };
 
@@ -559,56 +537,59 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
         {scanMode === 'scanning' && (
           <div style={{ textAlign: 'center', padding: '40px 20px' }}>
             {biometricType === 'face' ? (
-              cameraLoading ? (
+              <div style={{ 
+                position: 'relative',
+                width: '240px',
+                height: '180px',
+                margin: '0 auto 20px',
+                borderRadius: '12px',
+                overflow: 'hidden',
+                border: '2px solid #228B22',
+                background: '#000'
+              }}>
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+                <canvas ref={canvasRef} style={{ display: 'none' }} />
                 <div style={{
-                  width: '240px',
-                  height: '180px',
-                  margin: '0 auto 20px',
-                  borderRadius: '12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: '#F3F4F6',
-                  border: '2px solid #228B22',
-                }}>
-                  <Loader2 size={32} color="#228B22" style={{ animation: 'spin 1s linear infinite' }} />
-                </div>
-              ) : (
-                <div style={{ 
-                  position: 'relative',
-                  width: '240px',
-                  height: '180px',
-                  margin: '0 auto 20px',
-                  borderRadius: '12px',
-                  overflow: 'hidden',
-                  border: '2px solid #228B22',
-                  background: '#1a1a1a'
-                }}>
-                  <video
-                    ref={videoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    onLoadedMetadata={() => {
-                      console.log('Video metadata loaded');
-                      videoRef.current?.play().catch(console.error);
-                    }}
-                    onPlay={() => console.log('Video playing')}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                  />
-                  <div style={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    width: '120px',
-                    height: '120px',
-                    border: '3px solid #22C55E',
-                    borderRadius: '50%',
-                    animation: 'pulse 1.5s ease-in-out infinite',
-                  }} />
-                </div>
-              )}
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  width: '120px',
+                  height: '120px',
+                  border: '3px solid #22C55E',
+                  borderRadius: '50%',
+                  animation: 'pulse 1.5s ease-in-out infinite',
+                }} />
+              </div>
+            ) : (
+              <div style={{
+                width: '160px',
+                height: '160px',
+                margin: '0 auto 20px',
+                background: '#F3F4F6',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: '3px solid #228B22',
+                position: 'relative',
+              }}>
+                <Fingerprint size={64} color="#228B22" />
+                <div style={{
+                  position: 'absolute',
+                  inset: '-8px',
+                  border: '3px solid #22C55E',
+                  borderRadius: '50%',
+                  animation: 'pulse 1.5s ease-in-out infinite',
+                }} />
+              </div>
+            )}
             <p style={{ color: '#374151', marginBottom: '20px', fontWeight: 500 }}>
               {biometricType === 'face' ? 'Scanning your face...' : 'Scanning fingerprint...'}
             </p>
@@ -1247,8 +1228,6 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
                           bonusAmount: selectedAttendance.bonusAmount,
                         }),
                       });
-                      
-                      console.log('Selected attendance:', selectedAttendance._id, selectedAttendance.name, 'bonusAmount:', selectedAttendance.bonusAmount);
                       
                       const data = await response.json();
                       
