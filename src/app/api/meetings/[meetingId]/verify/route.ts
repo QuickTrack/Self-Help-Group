@@ -46,18 +46,26 @@ function compareImages(img1: string, img2: string): number {
   const base64Data1 = img1.includes(',') ? img1.split(',')[1] : img1;
   const base64Data2 = img2.includes(',') ? img2.split(',')[1] : img2;
   
-  if (base64Data1.length !== base64Data2.length) {
-    return Math.abs(base64Data1.length - base64Data2.length);
-  }
+  const len1 = base64Data1.length;
+  const len2 = base64Data2.length;
+  const maxLen = Math.max(len1, len2);
+  const minLen = Math.min(len1, len2);
+  
+  if (maxLen === 0) return 1;
+  
+  const lengthDiff = (maxLen - minLen) / maxLen;
   
   let diff = 0;
-  for (let i = 0; i < base64Data1.length; i++) {
+  const compareLen = Math.min(len1, len2);
+  for (let i = 0; i < compareLen; i += 10) {
     if (base64Data1[i] !== base64Data2[i]) {
       diff++;
     }
   }
   
-  return diff / base64Data1.length;
+  const charDiff = diff / (compareLen / 10);
+  
+  return (lengthDiff + charDiff) / 2;
 }
 
 export async function POST(
@@ -133,7 +141,7 @@ export async function POST(
 
           if (profile && isBase64Image(profile.biometricTemplate)) {
             const similarity = compareImages(biometricData, profile.biometricTemplate);
-            if (similarity < 0.1) {
+            if (similarity < 0.35) {
               matchedProfile = profile;
             }
           }
@@ -146,7 +154,7 @@ export async function POST(
           for (const profile of profiles) {
             if (isBase64Image(profile.biometricTemplate)) {
               const similarity = compareImages(biometricData, profile.biometricTemplate);
-              if (similarity < 0.1) {
+              if (similarity < 0.35) {
                 matchedProfile = profile;
                 break;
               }
