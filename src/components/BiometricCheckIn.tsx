@@ -94,6 +94,7 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
   const [deviceId] = useState(() => `device-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [cameraLoading, setCameraLoading] = useState(false);
+  const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Member[]>([]);
   const [searching, setSearching] = useState(false);
@@ -167,10 +168,19 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    if (videoRef.current && streamRef.current) {
-      videoRef.current.play().catch(console.error);
+    if (videoStream && videoRef.current) {
+      videoRef.current.srcObject = videoStream;
+      videoRef.current.play().then(() => console.log('Video playing via useEffect')).catch(console.error);
     }
-  }, [streamRef.current]);
+  }, [videoStream]);
+
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+      }
+    };
+  }, []);
 
   const fetchAttendance = useCallback(async () => {
     try {
@@ -224,6 +234,7 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
       });
       console.log('Camera stream obtained:', stream.id, 'tracks:', stream.getTracks().length);
       streamRef.current = stream;
+      setVideoStream(stream);
       
       if (videoRef.current) {
         console.log('Setting video source...');
@@ -294,14 +305,17 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
       let biometricData = '';
       
       if (biometricType === 'face') {
+        console.log('Capturing image...', videoRef.current?.readyState);
         biometricData = captureImage() || '';
+        console.log('Captured:', biometricData ? `yes (${biometricData.length} chars)` : 'no');
         if (!biometricData) {
-          throw new Error('Failed to capture image');
+          throw new Error('Failed to capture image - camera may not be ready');
         }
       } else {
         biometricData = `fingerprint-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       }
 
+      console.log('Sending verification request...');
       const response = await fetch(`/api/meetings/${meetingId}/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
