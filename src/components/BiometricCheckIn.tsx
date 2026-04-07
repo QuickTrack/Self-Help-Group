@@ -166,6 +166,12 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
   const streamRef = useRef<MediaStream | null>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
+  useEffect(() => {
+    if (videoRef.current && streamRef.current) {
+      videoRef.current.play().catch(console.error);
+    }
+  }, [streamRef.current]);
+
   const fetchAttendance = useCallback(async () => {
     try {
       const response = await fetch(`/api/meetings/${meetingId}/attendance`);
@@ -212,12 +218,22 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
   const startCamera = async () => {
     setCameraLoading(true);
     try {
+      console.log('Requesting camera access...');
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: 320, height: 240 }
       });
+      console.log('Camera stream obtained:', stream.id, 'tracks:', stream.getTracks().length);
       streamRef.current = stream;
+      
       if (videoRef.current) {
+        console.log('Setting video source...');
         videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          console.log('Metadata loaded, video dimensions:', videoRef.current?.videoWidth, videoRef.current?.videoHeight);
+          videoRef.current?.play().catch(e => console.error('Play error:', e));
+        };
+        videoRef.current.onplay = () => console.log('Video started playing');
+        videoRef.current.onerror = (e) => console.error('Video error:', e);
       }
     } catch (error: any) {
       console.error('Error accessing camera:', error);
@@ -559,9 +575,11 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
                     autoPlay
                     playsInline
                     muted
-                    loop
-                    width="240"
-                    height="180"
+                    onLoadedMetadata={() => {
+                      console.log('Video metadata loaded');
+                      videoRef.current?.play().catch(console.error);
+                    }}
+                    onPlay={() => console.log('Video playing')}
                     style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                   />
                   <div style={{
@@ -576,30 +594,7 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
                     animation: 'pulse 1.5s ease-in-out infinite',
                   }} />
                 </div>
-              )
-            ) : (
-              <div style={{
-                width: '160px',
-                height: '160px',
-                margin: '0 auto 20px',
-                background: '#F3F4F6',
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: '3px solid #228B22',
-                position: 'relative',
-              }}>
-                <Fingerprint size={64} color="#228B22" />
-                <div style={{
-                  position: 'absolute',
-                  inset: '-8px',
-                  border: '3px solid #22C55E',
-                  borderRadius: '50%',
-                  animation: 'pulse 1.5s ease-in-out infinite',
-                }} />
-              </div>
-            )}
+              )}
             <p style={{ color: '#374151', marginBottom: '20px', fontWeight: 500 }}>
               {biometricType === 'face' ? 'Scanning your face...' : 'Scanning fingerprint...'}
             </p>
