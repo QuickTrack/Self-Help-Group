@@ -220,13 +220,19 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
     } catch (error: any) {
       console.error('Error accessing camera:', error);
       if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-        setErrorMessage('Camera access denied. Please allow camera access in your browser settings and try again.');
+        setManualMode(true);
+        setScanMode('idle');
+        return;
       } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
-        setErrorMessage('No camera found. Please connect a camera and try again.');
+        setManualMode(true);
+        setScanMode('idle');
+        return;
       } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
         setErrorMessage('Camera is in use by another application. Please close other apps using the camera.');
       } else {
-        setErrorMessage('Unable to access camera. Please check your device settings.');
+        setManualMode(true);
+        setScanMode('idle');
+        return;
       }
     }
   };

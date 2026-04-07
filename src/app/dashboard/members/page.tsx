@@ -275,6 +275,7 @@ export default function MembersPage() {
               <th>Contact</th>
               <th>Location</th>
               <th>Join Date</th>
+              <th>Biometrics</th>
               <th>Status</th>
               <th style={{ width: '80px' }}>Actions</th>
             </tr>
@@ -307,6 +308,70 @@ export default function MembersPage() {
                     </div>
                   </td>
                   <td>{new Date(member.joinDate).toLocaleDateString()}</td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {(member.biometricProfiles && member.biometricProfiles.length > 0) ? (
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          {member.biometricProfiles.includes('face') && (
+                            <span style={{
+                              padding: '2px 6px',
+                              background: '#DCFCE7',
+                              color: '#16A34A',
+                              borderRadius: '4px',
+                              fontSize: '0.625rem',
+                              fontWeight: 500,
+                            }}>
+                              Face
+                            </span>
+                          )}
+                          {member.biometricProfiles.includes('fingerprint') && (
+                            <span style={{
+                              padding: '2px 6px',
+                              background: '#DBEAFE',
+                              color: '#2563EB',
+                              borderRadius: '4px',
+                              fontSize: '0.625rem',
+                              fontWeight: 500,
+                            }}>
+                              Finger
+                            </span>
+                          )}
+                          {member.biometricProfiles.includes('iris') && (
+                            <span style={{
+                              padding: '2px 6px',
+                              background: '#FEF3C7',
+                              color: '#D97706',
+                              borderRadius: '4px',
+                              fontSize: '0.625rem',
+                              fontWeight: 500,
+                            }}>
+                              Iris
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: '0.625rem', color: '#9CA3AF' }}>None</span>
+                      )}
+                      <button
+                        onClick={() => {
+                          setSelectedMemberId(member._id);
+                          setShowBiometricModal(true);
+                        }}
+                        style={{
+                          padding: '2px 4px',
+                          background: 'transparent',
+                          border: '1px solid #D1D5DB',
+                          cursor: 'pointer',
+                          color: '#6B7280',
+                          borderRadius: '2px',
+                          fontSize: '0.625rem',
+                        }}
+                        title="Edit Biometrics"
+                      >
+                        <Edit size={10} />
+                      </button>
+                    </div>
+                  </td>
                   <td>
                     <span className={`badge badge-${member.status === 'active' ? 'success' : 'warning'}`}>
                       {member.status}

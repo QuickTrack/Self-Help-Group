@@ -13,8 +13,8 @@ const EVENT_LIMITS: Record<string, number> = {
 
 async function getWelfareMinContribution(): Promise<number> {
   try {
-    const settings = await FinancialSettings.findOne().sort({ createdAt: -1 }).lean();
-    return settings?.welfareContribution || 100;
+    const settings = await FinancialSettings.findOne().sort({ createdAt: -1 }).lean() as { welfareContribution?: number } | null;
+    return settings?.welfareContribution ?? 100;
   } catch {
     return 100;
   }
@@ -41,7 +41,10 @@ export async function GET(request: Request) {
     const contributions = await WelfareFund.find(query)
       .populate('member', 'memberId fullName')
       .populate('recordedBy', 'email')
-      .populate('payoutRequest', 'eventType status')
+      .populate({
+        path: 'payoutRequest',
+        populate: { path: 'member', select: 'memberId fullName' }
+      })
       .sort({ date: -1 });
     
     const allContributions = await WelfareFund.find({});
@@ -80,23 +83,26 @@ export async function POST(request: Request) {
     }
 
     // Check for duplicate recent contribution (within last 30 seconds)
-    const recentDuplicate = await WelfareFund.findOne({
-      member: member,
-      amount: amount,
-      createdAt: { $gte: new Date(Date.now() - 30 * 1000) }
-    });
-    
-    if (recentDuplicate) {
-      return NextResponse.json({ error: 'A similar contribution was recently submitted. Please wait before submitting another.' }, { status: 409 });
-    }
-
+    // First resolve member to ObjectId
     let memberId = member;
     if (!mongoose.Types.ObjectId.isValid(member) || member.length !== 24) {
       const foundMember = await Member.findOne({ memberId: member });
       if (!foundMember) {
         return NextResponse.json({ error: 'Member not found' }, { status: 400 });
       }
-      memberId = foundMember._id.toString();
+      memberId = foundMember._id;
+    } else {
+      memberId = new mongoose.Types.ObjectId(member);
+    }
+    
+    const recentDuplicate = await WelfareFund.findOne({
+      member: memberId,
+      amount: amount,
+      createdAt: { $gte: new Date(Date.now() - 30 * 1000) }
+    });
+    
+    if (recentDuplicate) {
+      return NextResponse.json({ error: 'A similar contribution was recently submitted. Please wait before submitting another.' }, { status: 409 });
     }
     
     let appliedToPayout = false;
@@ -112,27 +118,9 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Payout request not found' }, { status: 404 });
       }
       
-      if (payout.member.toString() !== memberId) {
-        return NextResponse.json({ error: 'Payout request belongs to a different member' }, { status: 400 });
-      }
-      
       if (payout.status !== 'Pending' && payout.status !== 'Approved') {
         return NextResponse.json({ error: `Cannot apply contribution to payout with status: ${payout.status}` }, { status: 400 });
       }
-      
-      const totalContributions = await WelfareFund.aggregate([
-        { $match: { member: new mongoose.Types.ObjectId(memberId) } },
-        { $group: { _id: null, total: { $sum: '$amount' } } }
-      ]);
-      const memberTotalContributed = totalContributions[0]?.total || 0;
-      
-      const totalPayouts = await WelfarePayout.aggregate([
-        { $match: { member: new mongoose.Types.ObjectId(memberId), status: { $in: ['Approved', 'Paid'] } } },
-        { $group: { _id: null, total: { $sum: '$approvedAmount' } } }
-      ]);
-      const memberTotalPayouts = totalPayouts[0]?.total || 0;
-      
-      const availableBalance = memberTotalContributed - memberTotalPayouts;
       
       const maxPayoutLimit = {
         Bereavement: 20000,
@@ -155,10 +143,10 @@ export async function POST(request: Request) {
       
       appliedAmount = Math.min(remainingAmount, stillNeeded);
       
-      if (appliedAmount < stillNeeded && availableBalance < stillNeeded) {
-        notifications.push(`Insufficient total contributions. Applied KES ${appliedAmount.toLocaleString()} towards KES ${stillNeeded.toLocaleString()} needed.`);
-      } else if (appliedAmount < stillNeeded) {
+      if (appliedAmount < stillNeeded && remainingAmount >= stillNeeded) {
         notifications.push(`Partial contribution applied. KES ${appliedAmount.toLocaleString()} of KES ${stillNeeded.toLocaleString()} needed.`);
+      } else if (appliedAmount < stillNeeded) {
+        notifications.push(`Contribution fully applied to payout request.`);
       } else {
         notifications.push(`Contribution fully applied to payout request.`);
       }
@@ -208,6 +196,7 @@ export async function POST(request: Request) {
     }, { status: 201 });
   } catch (error) {
     console.error('Error creating welfare contribution:', error);
-    return NextResponse.json({ error: 'Failed to create contribution' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: 'Failed to create contribution', details: errorMessage }, { status: 500 });
   }
 }

@@ -24,6 +24,9 @@ async function getEligibilitySettings() {
     settingsMap[`limit${e.name}`] = e.maxCompensation;
   });
   
+  // Default values
+  settingsMap.allowIneligibleSubmissions = settingsMap.allowIneligibleSubmissions ?? true;
+  
   return settingsMap;
 }
 

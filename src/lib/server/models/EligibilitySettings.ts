@@ -33,6 +33,7 @@ eligibilitySettingsSchema.index({ category: 1 });
 export const EligibilitySettings = mongoose.models.EligibilitySettings || mongoose.model('EligibilitySettings', eligibilitySettingsSchema);
 
 const defaultSettings = [
+  { key: 'allowIneligibleSubmissions', value: true, description: 'Allow welfare payout requests to be submitted even when member does not meet eligibility requirements', category: 'eligibility' },
   { key: 'minimumContributionMonths', value: 3, description: 'Minimum number of months with contributions required', category: 'eligibility' },
   { key: 'minimumContributionsAmount', value: 750, description: 'Minimum total contribution amount required (KES)', category: 'eligibility' },
   { key: 'minimumMembershipMonths', value: 3, description: 'Minimum membership period in months', category: 'eligibility' },

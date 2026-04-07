@@ -39,6 +39,8 @@
   - Updated BiometricCheckIn component with real-time capture and verification
   - Added fingerprint button to member list actions for quick enrollment
   - Created comprehensive documentation in `docs/BIOMETRIC_SYSTEM.md`
+- [x] **Hover-triggered sidebar fix** - Fixed sidebar to only show when cursor is in the left 15px edge zone, added pointerEvents to prevent interference
+- [x] **Allow ineligible payout submissions** - Added `allowIneligibleSubmissions` setting (default: true) to allow welfare payout requests to be submitted even when member does not meet eligibility requirements
 
 ## Current Structure
 
@@ -111,3 +113,5 @@ npm run dev    # Start development server
 | 2026-04-06 | Loan migration scripts (SQL + MongoDB) |
 | 2026-04-06 | Loans page fetches from MongoDB API |
 | 2026-04-06 | Biometric authentication system with GDPR consent |
+| 2026-04-07 | Hover-triggered sidebar fix - edge zone only, pointerEvents fix |
+| 2026-04-07 | Allow ineligible welfare payout submissions via `allowIneligibleSubmissions` setting |

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/server/utils/db';
 import { BiometricProfile, Member } from '@/lib/server/models';
-import crypto from 'crypto';
 import mongoose from 'mongoose';
 
 interface BiometricEnrollmentBody {
@@ -12,11 +11,27 @@ interface BiometricEnrollmentBody {
   consentVersion?: string;
 }
 
+function isValidDescriptor(data: string): boolean {
+  try {
+    const parsed = JSON.parse(data);
+    return Array.isArray(parsed) && parsed.length === 128;
+  } catch {
+    return false;
+  }
+}
+
+function isBase64Image(data: string): boolean {
+  return data.startsWith('data:image') || /^[A-Za-z0-9+/=]+$/.test(data);
+}
+
 export async function POST(request: NextRequest) {
+  console.log('Biometric enrollment request, URI:', process.env.MONGODB_URI);
   try {
     await dbConnect();
+    console.log('Connected to:', mongoose.connection.name);
     
     const body: BiometricEnrollmentBody = await request.json();
+    console.log('Enrollment body type:', typeof body.biometricData, 'length:', body.biometricData?.length);
     const { memberId, biometricType, biometricData, consentGiven, consentVersion } = body;
 
     if (!memberId || !biometricType || !biometricData) {
@@ -27,25 +42,56 @@ export async function POST(request: NextRequest) {
     }
 
     if (!mongoose.isValidObjectId(memberId)) {
+      console.log('Invalid ObjectId:', memberId);
       return NextResponse.json({ error: 'Invalid member ID format' }, { status: 400 });
     }
 
+    const memberObjectId = new mongoose.Types.ObjectId(memberId);
+    console.log('Step 1: Looking for member:', memberId, memberObjectId);
+    
     const member = await Member.findById(memberId);
+    console.log('Step 2: Member result:', member ? `found: ${member.fullName}` : 'NOT FOUND');
+    
     if (!member) {
-      return NextResponse.json({ error: 'Member not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Member not found', givenId: memberId }, { status: 404 });
     }
-
+    
+    console.log('Step 3: Checking existing profile for', memberId, biometricType);
+    
     const existingProfile = await BiometricProfile.findOne({
-      memberId,
+      memberId: memberObjectId,
       biometricType,
       isActive: true,
     });
+    console.log('Step 4: Existing profile:', existingProfile ? 'found' : 'none');
+
+    let templateValue: string;
+    if (biometricType === 'face') {
+      if (isValidDescriptor(biometricData)) {
+        templateValue = biometricData;
+      } else if (isBase64Image(biometricData)) {
+        templateValue = biometricData;
+      } else {
+        return NextResponse.json(
+          { error: 'Invalid face data format - expected base64 image or descriptor' },
+          { status: 400 }
+        );
+      }
+    } else {
+      templateValue = biometricData;
+    }
 
     if (existingProfile) {
-      return NextResponse.json(
-        { error: `Biometric profile for ${biometricType} already exists` },
-        { status: 409 }
-      );
+      existingProfile.biometricTemplate = templateValue;
+      existingProfile.enrolledAt = new Date();
+      await existingProfile.save();
+      
+      return NextResponse.json({
+        message: `Biometric profile for ${biometricType} updated successfully`,
+        success: true,
+      }, {
+        status: 200,
+      });
     }
 
     if (!consentGiven) {
@@ -55,23 +101,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const templateHash = crypto
-      .createHash('sha256')
-      .update(biometricData)
-      .digest('hex');
-
     const biometricProfile = new BiometricProfile({
       memberId: new mongoose.Types.ObjectId(memberId),
       biometricType,
-      biometricTemplate: templateHash,
-      hashAlgorithm: 'sha256',
+      biometricTemplate: templateValue,
+      hashAlgorithm: biometricType === 'face' ? 'face-descriptor' : 'sha256',
       consentGiven: true,
       consentDate: new Date(),
       isActive: true,
       enrolledAt: new Date(),
     });
 
+    console.log('Saving biometric profile:', {
+      memberId: memberId,
+      biometricType,
+      templateLength: templateValue.length,
+    });
+
     await biometricProfile.save();
+    console.log('Biometric profile saved, id:', biometricProfile._id);
 
     await Member.findByIdAndUpdate(memberId, {
       biometricConsentGiven: true,
@@ -89,10 +137,14 @@ export async function POST(request: NextRequest) {
         enrolledAt: biometricProfile.enrolledAt,
       },
     }, { status: 201 });
-  } catch (error) {
-    console.error('Biometric enrollment error:', error);
+  } catch (error: any) {
+    console.error('Biometric enrollment error FULL:', error);
+    console.error('Error name:', error?.name);
+    console.error('Error message:', error?.message);
+    console.error('Error stack:', error?.stack);
+    const errorMessage = error?.message || 'Unknown error';
     return NextResponse.json(
-      { error: 'Failed to enroll biometric profile' },
+      { error: 'Failed to enroll biometric profile', details: errorMessage, name: error?.name },
       { status: 500 }
     );
   }

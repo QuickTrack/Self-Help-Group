@@ -279,8 +279,9 @@ h1, h2, h3, h4, h5, h6 {
     border-right: 1px solid #E5E7EB !important;
   }
   
-  /* Show sidebar only when hovering the edge trigger zone */
-  .sidebar-edge-trigger:hover ~ .sidebar-hover-sidebar {
+  /* Show sidebar when hovering the edge trigger zone OR the sidebar itself */
+  .sidebar-edge-trigger:hover ~ .sidebar-hover-sidebar,
+  .sidebar-hover-sidebar:hover {
     transform: translateX(0) !important;
   }
   

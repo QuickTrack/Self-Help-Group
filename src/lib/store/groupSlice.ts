@@ -37,6 +37,7 @@ interface GroupSettings {
   shareValue: number;
   monthlyContribution: number;
   weeklyContribution: number;
+  welfareContribution?: number;
   bonusPerAttendance?: number;
   smsNotifications: boolean;
   emailNotifications: boolean;

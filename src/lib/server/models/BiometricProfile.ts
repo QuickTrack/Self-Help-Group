@@ -5,7 +5,6 @@ const biometricProfileSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Member',
     required: true,
-    unique: true,
   },
   hashAlgorithm: {
     type: String,
@@ -43,6 +42,6 @@ const biometricProfileSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-biometricProfileSchema.index({ biometricType: 1 });
+biometricProfileSchema.index({ memberId: 1, biometricType: 1 }, { unique: true });
 
 export const BiometricProfile = mongoose.models.BiometricProfile || mongoose.model('BiometricProfile', biometricProfileSchema);

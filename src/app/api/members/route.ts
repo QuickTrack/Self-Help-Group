@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '../../../lib/server/utils/db';
 import { Member } from '../../../lib/server/models/Member';
 import { Savings } from '../../../lib/server/models/Savings';
+import { BiometricProfile } from '../../../lib/server/models/BiometricProfile';
 
 export async function GET(request: NextRequest) {
   try {
@@ -43,8 +44,27 @@ export async function GET(request: NextRequest) {
 
     const total = await Member.countDocuments(query);
 
+    const memberIds = members.map((m: any) => m._id);
+    const biometricProfiles = await BiometricProfile.find({ 
+      memberId: { $in: memberIds },
+      isActive: true 
+    }).lean();
+
+    const profilesByMemberId = biometricProfiles.reduce((acc: Record<string, string[]>, profile: any) => {
+      if (!acc[profile.memberId.toString()]) {
+        acc[profile.memberId.toString()] = [];
+      }
+      acc[profile.memberId.toString()].push(profile.biometricType);
+      return acc;
+    }, {});
+
+    const membersWithBiometrics = members.map((m: any) => ({
+      ...m,
+      biometricProfiles: profilesByMemberId[m._id.toString()] || [],
+    }));
+
     return NextResponse.json({
-      members,
+      members: membersWithBiometrics,
       pagination: {
         page,
         limit,

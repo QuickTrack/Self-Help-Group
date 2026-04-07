@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/server/utils/db';
 import { BiometricProfile, Member, Attendance, Meeting, Settings, FinancialSettings } from '@/lib/server/models';
-import crypto from 'crypto';
 import mongoose from 'mongoose';
 
 interface VerifyRequest {
@@ -9,6 +8,56 @@ interface VerifyRequest {
   biometricType: 'fingerprint' | 'face' | 'iris';
   biometricData: string;
   deviceId: string;
+}
+
+function compareDescriptors(desc1: number[], desc2: number[]): number {
+  if (!desc1 || !desc2 || desc1.length !== desc2.length) {
+    return 1;
+  }
+  
+  let sum = 0;
+  for (let i = 0; i < desc1.length; i++) {
+    const diff = desc1[i] - desc2[i];
+    sum += diff * diff;
+  }
+  
+  return Math.sqrt(sum);
+}
+
+function areFacesMatching(desc1: number[], desc2: number[], threshold: number = 0.6): boolean {
+  const distance = compareDescriptors(desc1, desc2);
+  return distance < threshold;
+}
+
+function isValidDescriptor(data: string): boolean {
+  try {
+    const parsed = JSON.parse(data);
+    return Array.isArray(parsed) && parsed.length === 128;
+  } catch {
+    return false;
+  }
+}
+
+function isBase64Image(data: string): boolean {
+  return data.startsWith('data:image') || (data.length > 100 && /^[A-Za-z0-9+/=]+$/.test(data));
+}
+
+function compareImages(img1: string, img2: string): number {
+  const base64Data1 = img1.includes(',') ? img1.split(',')[1] : img1;
+  const base64Data2 = img2.includes(',') ? img2.split(',')[1] : img2;
+  
+  if (base64Data1.length !== base64Data2.length) {
+    return Math.abs(base64Data1.length - base64Data2.length);
+  }
+  
+  let diff = 0;
+  for (let i = 0; i < base64Data1.length; i++) {
+    if (base64Data1[i] !== base64Data2[i]) {
+      diff++;
+    }
+  }
+  
+  return diff / base64Data1.length;
 }
 
 export async function POST(
@@ -33,34 +82,107 @@ export async function POST(
       );
     }
 
-    const inputHash = crypto
-      .createHash('sha256')
-      .update(biometricData)
-      .digest('hex');
-
     let matchedProfile: any = null;
-    let targetMemberId = memberId;
 
-    if (memberId && memberId !== 'manual-trigger' && mongoose.isValidObjectId(memberId)) {
-      const profile = await BiometricProfile.findOne({
-        memberId,
-        biometricType,
-        isActive: true,
-      });
+    if (biometricType === 'face') {
+      if (isValidDescriptor(biometricData)) {
+        const inputDescriptor = JSON.parse(biometricData);
 
-      if (profile && inputHash === profile.biometricTemplate) {
-        matchedProfile = profile;
+        if (memberId && memberId !== 'manual-trigger' && mongoose.isValidObjectId(memberId)) {
+          const profile = await BiometricProfile.findOne({
+            memberId,
+            biometricType,
+            isActive: true,
+          });
+
+          if (profile) {
+            try {
+              const storedDescriptor = JSON.parse(profile.biometricTemplate);
+              if (areFacesMatching(inputDescriptor, storedDescriptor)) {
+                matchedProfile = profile;
+              }
+            } catch (e) {
+              console.error('Error parsing stored descriptor:', e);
+            }
+          }
+        } else {
+          const profiles = await BiometricProfile.find({
+            biometricType,
+            isActive: true,
+          }).lean();
+
+          for (const profile of profiles) {
+            try {
+              const storedDescriptor = JSON.parse(profile.biometricTemplate);
+              if (areFacesMatching(inputDescriptor, storedDescriptor)) {
+                matchedProfile = profile;
+                break;
+              }
+            } catch (e) {
+              console.error('Error parsing stored descriptor:', e);
+            }
+          }
+        }
+      } else if (isBase64Image(biometricData)) {
+        if (memberId && memberId !== 'manual-trigger' && mongoose.isValidObjectId(memberId)) {
+          const profile = await BiometricProfile.findOne({
+            memberId,
+            biometricType,
+            isActive: true,
+          });
+
+          if (profile && isBase64Image(profile.biometricTemplate)) {
+            const similarity = compareImages(biometricData, profile.biometricTemplate);
+            if (similarity < 0.1) {
+              matchedProfile = profile;
+            }
+          }
+        } else {
+          const profiles = await BiometricProfile.find({
+            biometricType,
+            isActive: true,
+          }).lean();
+
+          for (const profile of profiles) {
+            if (isBase64Image(profile.biometricTemplate)) {
+              const similarity = compareImages(biometricData, profile.biometricTemplate);
+              if (similarity < 0.1) {
+                matchedProfile = profile;
+                break;
+              }
+            }
+          }
+        }
+      } else {
+        return NextResponse.json(
+          { verified: false, error: 'Invalid face data format' },
+          { status: 400 }
+        );
       }
     } else {
-      const profiles = await BiometricProfile.find({
-        biometricType,
-        isActive: true,
-      }).lean();
+      const inputHash = biometricData;
+      
+      if (memberId && memberId !== 'manual-trigger' && mongoose.isValidObjectId(memberId)) {
+        const profile = await BiometricProfile.findOne({
+          memberId,
+          biometricType,
+          isActive: true,
+        });
 
-      for (const profile of profiles) {
-        if (inputHash === profile.biometricTemplate) {
+        if (profile && inputHash === profile.biometricTemplate) {
           matchedProfile = profile;
-          break;
+        }
+      } else {
+        const profiles = await BiometricProfile.find({
+          biometricType,
+          isActive: true,
+        }).lean();
+
+        for (const profile of profiles) {
+          if (inputHash === profile.biometricTemplate) {
+            matchedProfile = profile;
+            break;
+          }
         }
       }
     }

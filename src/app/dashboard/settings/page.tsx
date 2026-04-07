@@ -224,6 +224,7 @@ export default function SettingsPage() {
         shareValue: String(groupSettings.shareValue || 1000),
         monthlyContribution: String(groupSettings.monthlyContribution || 1000),
         weeklyContribution: String(groupSettings.weeklyContribution || 250),
+        welfareContribution: String(groupSettings.welfareContribution || 100),
         bonusPerAttendance: String(groupSettings.bonusPerAttendance || 1000),
         smsNotifications: groupSettings.smsNotifications ?? true,
         emailNotifications: groupSettings.emailNotifications ?? true,

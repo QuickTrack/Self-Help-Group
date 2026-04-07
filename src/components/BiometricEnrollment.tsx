@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Camera, Fingerprint, Shield, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { Camera, Fingerprint, Shield, CheckCircle, XCircle, AlertTriangle, Loader2 } from 'lucide-react';
 
 interface BiometricEnrollmentProps {
   memberId: string;
   onComplete?: (success: boolean, enrolledTypes: string[]) => void;
+  onError?: (error: string) => void;
 }
 
 type BiometricType = 'fingerprint' | 'face';
@@ -17,13 +18,14 @@ const CONSENT_TEXT = `I hereby give explicit consent for the collection and proc
 4. I have the right to request deletion of my biometric data
 5. This consent is given in compliance with GDPR and local data protection laws`;
 
-export default function BiometricEnrollment({ memberId, onComplete }: BiometricEnrollmentProps) {
+export default function BiometricEnrollment({ memberId, onComplete, onError }: BiometricEnrollmentProps) {
   const [biometricType, setBiometricType] = useState<BiometricType>('face');
   const [step, setStep] = useState<'consent' | 'capture' | 'processing' | 'success' | 'error'>('consent');
   const [consentChecked, setConsentChecked] = useState(false);
   const [enrolledTypes, setEnrolledTypes] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -41,11 +43,12 @@ export default function BiometricEnrollment({ memberId, onComplete }: BiometricE
     } catch (error: any) {
       console.error('Camera error:', error);
       if (error.name === 'NotAllowedError') {
-        setErrorMessage('Camera access denied. Please allow camera access in browser settings.');
+        onError?.('Camera permission denied. Please enable camera in browser settings or use manual enrollment.');
+        setStep('error');
       } else {
-        setErrorMessage('Unable to access camera. Please check your device.');
+        onError?.('Unable to access camera. Please check your device.');
+        setStep('error');
       }
-      setStep('error');
     }
   };
 
@@ -62,6 +65,11 @@ export default function BiometricEnrollment({ memberId, onComplete }: BiometricE
     const context = canvasRef.current.getContext('2d');
     if (!context) return null;
     
+    if (!videoRef.current.videoWidth || !videoRef.current.videoHeight) {
+      console.warn('Video not ready for capture');
+      return null;
+    }
+    
     canvasRef.current.width = videoRef.current.videoWidth;
     canvasRef.current.height = videoRef.current.videoHeight;
     context.drawImage(videoRef.current, 0, 0);
@@ -77,28 +85,50 @@ export default function BiometricEnrollment({ memberId, onComplete }: BiometricE
     
     setStep('capture');
     setErrorMessage(null);
+    setStatusMessage('');
     
     if (biometricType === 'face') {
       await startCamera();
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
   };
 
   const handleCapture = async () => {
-    setStep('processing');
     setIsCapturing(true);
+    setErrorMessage(null);
+    setStatusMessage('');
     
     try {
       let biometricData = '';
       
       if (biometricType === 'face') {
-        biometricData = captureImage() || '';
-        if (!biometricData) {
-          throw new Error('Failed to capture image');
+        setStatusMessage('Capturing face...');
+        
+        if (!videoRef.current || videoRef.current.readyState < 2) {
+          setErrorMessage('Camera not ready. Please wait a moment and try again.');
+          setIsCapturing(false);
+          setStep('error');
+          return;
         }
+        
+        const captured = captureImage();
+        if (!captured) {
+          setErrorMessage('Failed to capture image. Please try again.');
+          setIsCapturing(false);
+          setStep('error');
+          return;
+        }
+        
+        biometricData = captured;
         stopCamera();
       } else {
+        setStatusMessage('Recording fingerprint...');
         biometricData = `fingerprint-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       }
+
+      setStep('processing');
+      
+      setStatusMessage('Enrolling biometric data...');
       
       const response = await fetch('/api/biometric/enroll', {
         method: 'POST',
@@ -112,14 +142,18 @@ export default function BiometricEnrollment({ memberId, onComplete }: BiometricE
         }),
       });
       
+      console.log('Enrollment response status:', response.status);
+      
       const data = await response.json();
+      console.log('Enrollment response data:', JSON.stringify(data));
       
       if (response.ok && data.success) {
         setEnrolledTypes(prev => [...prev, biometricType]);
         setStep('success');
         onComplete?.(true, [...enrolledTypes, biometricType]);
       } else {
-        throw new Error(data.error || 'Enrollment failed');
+        const errorMsg = data.error || `Enrollment failed (${response.status})`;
+        throw new Error(errorMsg);
       }
     } catch (error: any) {
       console.error('Enrollment error:', error);
@@ -354,34 +388,43 @@ export default function BiometricEnrollment({ memberId, onComplete }: BiometricE
           
           <button
             onClick={handleCapture}
+            disabled={isCapturing}
             style={{
               padding: '14px 32px',
-              background: '#228B22',
+              background: isCapturing ? '#9CA3AF' : '#228B22',
               color: 'white',
               border: 'none',
               borderRadius: '8px',
               fontWeight: 500,
               fontSize: '1rem',
-              cursor: 'pointer',
+              cursor: isCapturing ? 'not-allowed' : 'pointer',
             }}
           >
-            Capture & Enroll
+            {isCapturing ? (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+                <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
+                Processing...
+              </span>
+            ) : (
+              'Capture & Enroll'
+            )}
           </button>
+          
+          {statusMessage && (
+            <p style={{ marginTop: '12px', color: '#6B7280', fontSize: '0.875rem' }}>
+              {statusMessage}
+            </p>
+          )}
         </div>
       )}
       
       {step === 'processing' && (
         <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-          <div style={{
-            width: '60px',
-            height: '60px',
-            margin: '0 auto 16px',
-            border: '3px solid #E5E7EB',
-            borderTopColor: '#228B22',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite',
-          }} />
+          <Loader2 size={48} color="#228B22" style={{ animation: 'spin 1s linear infinite', marginBottom: '16px' }} />
           <p style={{ color: '#6B7280' }}>Processing biometric data...</p>
+          {statusMessage && (
+            <p style={{ color: '#6B7280', fontSize: '0.875rem', marginTop: '8px' }}>{statusMessage}</p>
+          )}
           <style>{`
             @keyframes spin {
               from { transform: rotate(0deg); }

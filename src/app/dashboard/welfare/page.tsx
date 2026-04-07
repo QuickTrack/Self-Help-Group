@@ -159,6 +159,19 @@ export default function WelfarePage() {
     loadData();
   }, [loadData]);
 
+  // Auto-select latest payout request when member is selected for contribution
+  useEffect(() => {
+    if (selectedMember && pendingPayouts.length > 0) {
+      // Get the latest pending payout request (any member's request that needs funding)
+      const sorted = [...pendingPayouts].sort((a, b) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      setSelectedPayoutRequest(sorted[0]._id);
+    } else if (!selectedMember) {
+      setSelectedPayoutRequest('');
+    }
+  }, [selectedMember, pendingPayouts]);
+
   async function handleAddContribution(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     
@@ -176,19 +189,6 @@ export default function WelfarePage() {
     if (!selectedMember) {
       alert('Please select a member');
       return;
-    }
-    
-    if (selectedPayoutRequest) {
-      const payout = pendingPayouts.find(p => p._id === selectedPayoutRequest);
-      if (payout) {
-        const amount = parseFloat(formData.get('amount') as string);
-        const maxLimit = eventLimits[payout.eventType] || 10000;
-        const needed = maxLimit - (payout.approvedAmount || 0);
-        
-        if (amount < needed && !confirm(`This contribution (KES ${amount.toLocaleString()}) is less than the amount needed (KES ${needed.toLocaleString()}). Submit anyway?`)) {
-          return;
-        }
-      }
     }
     
     setContributionError(null);
@@ -216,10 +216,9 @@ export default function WelfarePage() {
           setContributionNotification(responseData.message);
         }
       } else {
-        setContributionError(responseData.error || 'Failed to add contribution');
-        if (responseData.warning) {
-          setContributionNotification(responseData.warning);
-        }
+        const errorMsg = responseData.details || responseData.error || 'Failed to add contribution';
+        setContributionError(errorMsg);
+        console.error('Contribution error:', responseData);
       }
     } catch (error) {
       setContributionError('Failed to add contribution');
@@ -571,7 +570,7 @@ export default function WelfarePage() {
                   <th className="pb-2">Member</th>
                   <th className="pb-2">Amount</th>
                   <th className="pb-2">Method</th>
-                  <th className="pb-2">Notes</th>
+                  <th className="pb-2">Payout Request</th>
                 </tr>
               </thead>
               <tbody>
@@ -588,7 +587,20 @@ export default function WelfarePage() {
                       <td className="py-2">{c.member?.fullName || 'Unknown'}</td>
                       <td className="py-2">KES {c.amount?.toLocaleString()}</td>
                       <td className="py-2">{c.paymentMethod}</td>
-                      <td className="py-2 text-gray-500">{c.notes || '-'}</td>
+                      <td className="py-2">
+                        {c.payoutRequest ? (
+                          <div>
+                            <div className="text-green-600 font-medium">
+                              {c.payoutRequest?.member?.fullName || 'Unknown'}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {c.payoutRequest?.eventType}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-gray-500">-</span>
+                        )}
+                      </td>
                     </tr>
                   ))
                 )}
@@ -761,10 +773,7 @@ export default function WelfarePage() {
                 <label className="block text-sm font-medium mb-1">Member</label>
                 <MemberSearch
                   value={selectedMember}
-                  onChange={(memberId) => {
-                    setSelectedMember(memberId);
-                    setSelectedPayoutRequest('');
-                  }}
+                  onChange={(memberId) => setSelectedMember(memberId)}
                   placeholder="Search member by name, ID, or phone..."
                 />
               </div>
@@ -778,7 +787,7 @@ export default function WelfarePage() {
                 >
                   <option value="">No payout request - general contribution</option>
                   {pendingPayouts
-                    .filter(p => !selectedMember || p.member?._id === selectedMember || p.member === selectedMember)
+                    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
                     .map(p => {
                       const maxLimit = eventLimits[p.eventType] || 10000;
                       const needed = maxLimit - (p.approvedAmount || 0);
@@ -790,7 +799,7 @@ export default function WelfarePage() {
                     })}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
-                  Select a payout request to automatically apply this contribution
+                  Auto-selected: latest pending payout request from any member
                 </p>
               </div>
               

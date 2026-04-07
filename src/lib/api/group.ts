@@ -39,6 +39,7 @@ interface GroupSettings {
   defaultInterestRate?: number;
   maxLoanPeriod?: number;
   minGuarantors?: number;
+  welfareContribution?: number;
   bonusPerAttendance?: number;
 }
 
