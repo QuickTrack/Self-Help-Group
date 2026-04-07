@@ -93,6 +93,7 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
   const [biometricType, setBiometricType] = useState<'face' | 'fingerprint'>('face');
   const [deviceId] = useState(() => `device-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [cameraLoading, setCameraLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Member[]>([]);
   const [searching, setSearching] = useState(false);
@@ -209,6 +210,7 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
   }, []);
 
   const startCamera = async () => {
+    setCameraLoading(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: 320, height: 240 }
@@ -222,18 +224,17 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
       if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
         setManualMode(true);
         setScanMode('idle');
-        return;
       } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
         setManualMode(true);
         setScanMode('idle');
-        return;
       } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
         setErrorMessage('Camera is in use by another application. Please close other apps using the camera.');
       } else {
         setManualMode(true);
         setScanMode('idle');
-        return;
       }
+    } finally {
+      setCameraLoading(false);
     }
   };
 
@@ -259,10 +260,13 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
 
   const handleStartScan = async () => {
     if (biometricType === 'face') {
+      setScanMode('scanning');
+      setErrorMessage(null);
       await startCamera();
+    } else {
+      setScanMode('scanning');
+      setErrorMessage(null);
     }
-    setScanMode('scanning');
-    setErrorMessage(null);
   };
 
   const handleProcessScan = async () => {
@@ -414,6 +418,7 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
     setScanMode('idle');
     setErrorMessage(null);
     setLastVerifiedMember(null);
+    stopCamera();
   };
 
   const handleCancel = () => {
@@ -523,35 +528,51 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
         {scanMode === 'scanning' && (
           <div style={{ textAlign: 'center', padding: '40px 20px' }}>
             {biometricType === 'face' ? (
-              <div style={{ 
-                position: 'relative',
-                width: '240px',
-                height: '180px',
-                margin: '0 auto 20px',
-                borderRadius: '12px',
-                overflow: 'hidden',
-                border: '2px solid #228B22',
-                background: '#000'
-              }}>
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
+              cameraLoading ? (
                 <div style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  width: '120px',
-                  height: '120px',
-                  border: '3px solid #22C55E',
-                  borderRadius: '50%',
-                  animation: 'pulse 1.5s ease-in-out infinite',
-                }} />
-              </div>
+                  width: '240px',
+                  height: '180px',
+                  margin: '0 auto 20px',
+                  borderRadius: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: '#F3F4F6',
+                  border: '2px solid #228B22',
+                }}>
+                  <Loader2 size={32} color="#228B22" style={{ animation: 'spin 1s linear infinite' }} />
+                </div>
+              ) : (
+                <div style={{ 
+                  position: 'relative',
+                  width: '240px',
+                  height: '180px',
+                  margin: '0 auto 20px',
+                  borderRadius: '12px',
+                  overflow: 'hidden',
+                  border: '2px solid #228B22',
+                  background: '#000'
+                }}>
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                  <div style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: '120px',
+                    height: '120px',
+                    border: '3px solid #22C55E',
+                    borderRadius: '50%',
+                    animation: 'pulse 1.5s ease-in-out infinite',
+                  }} />
+                </div>
+              )
             ) : (
               <div style={{
                 width: '160px',
