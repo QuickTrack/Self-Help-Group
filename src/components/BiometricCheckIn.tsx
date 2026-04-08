@@ -208,24 +208,68 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
     return () => clearInterval(interval);
   }, []);
 
-  const initializeCamera = useCallback(async () => {
-    if (streamRef.current) return;
-    
+  const initializeCamera = useCallback(async (): Promise<boolean> => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: 320, height: 240 }
       });
-      streamRef.current = stream;
       
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-        isCameraReady.current = true;
+      if (!videoRef.current) {
+        stream.getTracks().forEach(track => track.stop());
+        return false;
       }
+      
+      streamRef.current = stream;
+      videoRef.current.srcObject = stream;
+      
+      await new Promise<void>((resolve, reject) => {
+        if (!videoRef.current) {
+          reject(new Error('No video ref'));
+          return;
+        }
+        
+        const onCanPlay = () => {
+          videoRef.current?.removeEventListener('canplay', onCanPlay);
+          videoRef.current?.removeEventListener('error', onError);
+          resolve();
+        };
+        
+        const onError = () => {
+          videoRef.current?.removeEventListener('canplay', onCanPlay);
+          videoRef.current?.removeEventListener('error', onError);
+          reject(new Error('Video load error'));
+        };
+        
+        videoRef.current.addEventListener('canplay', onCanPlay);
+        videoRef.current.addEventListener('error', onError);
+        
+        if (videoRef.current.readyState >= 2) {
+          resolve();
+        }
+      });
+      
+      await videoRef.current.play();
+      isCameraReady.current = true;
+      console.log('Camera initialized and ready');
+      return true;
     } catch (error: any) {
       console.error('Camera error:', error);
-      setManualMode(true);
-      setScanMode('idle');
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+      let errorMsg = 'Camera access failed. ';
+      if (error.name === 'NotAllowedError' || error.code === 1) {
+        errorMsg += 'Camera permission denied. Click "Start Scan" to prompt for permission again, or enable camera in browser settings.';
+      } else if (error.name === 'NotFoundError' || error.code === 2) {
+        errorMsg += 'No camera found on this device.';
+      } else if (error.name === 'NotReadableError' || error.code === 3) {
+        errorMsg += 'Camera is in use by another application.';
+      } else {
+        errorMsg += 'Please check permissions and try again.';
+      }
+      setErrorMessage(errorMsg);
+      return false;
     }
   }, []);
 
@@ -264,11 +308,18 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
   }, []);
 
   const handleStartScan = async () => {
+    if (errorMessage) {
+      setErrorMessage(null);
+    }
     setScanMode('scanning');
-    setErrorMessage(null);
     
     if (biometricType === 'face') {
-      await initializeCamera();
+      const success = await initializeCamera();
+      if (!success) {
+        setErrorMessage('Camera access required. Click "Start Scan" to grant permission.');
+      } else {
+        setTimeout(() => handleProcessScan(), 1500);
+      }
     }
   };
 
@@ -593,20 +644,49 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
             <p style={{ color: '#374151', marginBottom: '20px', fontWeight: 500 }}>
               {biometricType === 'face' ? 'Scanning your face...' : 'Scanning fingerprint...'}
             </p>
-            <button
-              onClick={handleProcessScan}
-              style={{
-                ...cardStyles.button,
-                background: '#228B22',
-                color: 'white',
-                border: 'none',
-                padding: '14px 32px',
-                fontSize: '1rem',
-              }}
-            >
-              <Fingerprint size={18} />
-              {biometricType === 'face' ? 'Capture Face' : 'Scan Fingerprint'}
-            </button>
+            {!isCameraReady.current && biometricType === 'face' && !errorMessage && (
+              <p style={{ color: '#6B7280', marginBottom: '16px', fontSize: '0.875rem' }}>
+                Click &quot;Start Camera&quot; to enable camera
+              </p>
+            )}
+            {errorMessage && (
+              <p style={{ color: '#DC2626', marginBottom: '16px', fontSize: '0.875rem' }}>
+                {errorMessage}
+              </p>
+            )}
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexDirection: 'column' }}>
+              <button
+                onClick={handleProcessScan}
+                disabled={!isCameraReady.current}
+                style={{
+                  ...cardStyles.button,
+                  background: isCameraReady.current ? '#228B22' : '#9CA3AF',
+                  color: 'white',
+                  border: 'none',
+                  padding: '14px 32px',
+                  fontSize: '1rem',
+                  cursor: isCameraReady.current ? 'pointer' : 'not-allowed',
+                }}
+              >
+                <Fingerprint size={18} />
+                {biometricType === 'face' ? 'Capture Face' : 'Scan Fingerprint'}
+              </button>
+              {!isCameraReady.current && biometricType === 'face' && (
+                <button
+                  onClick={handleStartScan}
+                  style={{
+                    ...cardStyles.button,
+                    background: 'white',
+                    color: '#374151',
+                    border: '1px solid #D1D5DB',
+                    padding: '10px 24px',
+                  }}
+                >
+                  <Camera size={18} />
+                  Start Camera
+                </button>
+              )}
+            </div>
           </div>
         )}
 

@@ -143,8 +143,22 @@ export default function BiometricEnrollment({ memberId, onComplete, onError }: B
       });
       
       console.log('Enrollment response status:', response.status);
+      console.log('Enrollment response headers:', Object.fromEntries([...response.headers]));
       
-      const data = await response.json();
+      const text = await response.text();
+      console.log('Enrollment response text:', text);
+      
+      if (!text) {
+        throw new Error(`Empty response from server (status ${response.status})`);
+      }
+      
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(`Invalid JSON response: ${text.substring(0, 200)}`);
+      }
+      
       console.log('Enrollment response data:', JSON.stringify(data));
       
       if (response.ok && data.success) {
@@ -152,12 +166,14 @@ export default function BiometricEnrollment({ memberId, onComplete, onError }: B
         setStep('success');
         onComplete?.(true, [...enrolledTypes, biometricType]);
       } else {
-        const errorMsg = data.error || `Enrollment failed (${response.status})`;
+        console.error('Enrollment API error:', data);
+        const errorMsg = data.error || data.details || `Enrollment failed (${response.status})`;
         throw new Error(errorMsg);
       }
     } catch (error: any) {
       console.error('Enrollment error:', error);
-      setErrorMessage(error.message || 'Failed to enroll biometric profile');
+      const errorMsg = error?.message || 'Failed to enroll biometric profile. Please check that MongoDB is running and try again.';
+      setErrorMessage(errorMsg);
       setStep('error');
     } finally {
       setIsCapturing(false);

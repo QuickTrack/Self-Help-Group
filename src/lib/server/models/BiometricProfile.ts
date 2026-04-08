@@ -8,7 +8,7 @@ const biometricProfileSchema = new mongoose.Schema({
   },
   hashAlgorithm: {
     type: String,
-    enum: ['sha256', 'sha512', 'bcrypt'],
+    enum: ['sha256', 'sha512', 'bcrypt', 'face-descriptor', 'image-similarity'],
     default: 'sha256',
   },
   biometricType: {

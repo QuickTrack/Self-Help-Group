@@ -25,13 +25,13 @@ function isBase64Image(data: string): boolean {
 }
 
 export async function POST(request: NextRequest) {
-  console.log('Biometric enrollment request, URI:', process.env.MONGODB_URI);
+  console.log('Biometric enrollment request');
   try {
     await dbConnect();
-    console.log('Connected to:', mongoose.connection.name);
+    console.log('Connected to MongoDB');
     
     const body: BiometricEnrollmentBody = await request.json();
-    console.log('Enrollment body type:', typeof body.biometricData, 'length:', body.biometricData?.length);
+    console.log('Enrollment body:', { memberId: body.memberId, biometricType: body.biometricType, dataLength: body.biometricData?.length });
     const { memberId, biometricType, biometricData, consentGiven, consentVersion } = body;
 
     if (!memberId || !biometricType || !biometricData) {
@@ -105,17 +105,11 @@ export async function POST(request: NextRequest) {
       memberId: new mongoose.Types.ObjectId(memberId),
       biometricType,
       biometricTemplate: templateValue,
-      hashAlgorithm: biometricType === 'face' ? 'face-descriptor' : 'sha256',
+      hashAlgorithm: 'sha256',
       consentGiven: true,
       consentDate: new Date(),
       isActive: true,
       enrolledAt: new Date(),
-    });
-
-    console.log('Saving biometric profile:', {
-      memberId: memberId,
-      biometricType,
-      templateLength: templateValue.length,
     });
 
     await biometricProfile.save();
@@ -142,7 +136,15 @@ export async function POST(request: NextRequest) {
     console.error('Error name:', error?.name);
     console.error('Error message:', error?.message);
     console.error('Error stack:', error?.stack);
-    const errorMessage = error?.message || 'Unknown error';
+    
+    let errorMessage = error?.message || 'Unknown error';
+    
+    if (errorMessage.includes('MongoNetworkError') || errorMessage.includes('connection')) {
+      errorMessage = 'Database connection failed. Please ensure MongoDB is running.';
+    } else if (error?.name === 'ValidationError') {
+      errorMessage = 'Invalid data: ' + errorMessage;
+    }
+    
     return NextResponse.json(
       { error: 'Failed to enroll biometric profile', details: errorMessage, name: error?.name },
       { status: 500 }
