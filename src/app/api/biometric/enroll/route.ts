@@ -9,6 +9,7 @@ interface BiometricEnrollmentBody {
   biometricData: string;
   consentGiven: boolean;
   consentVersion?: string;
+  deviceId?: string;
 }
 
 function isValidDescriptor(data: string): boolean {
@@ -65,6 +66,30 @@ export async function POST(request: NextRequest) {
     });
     console.log('Step 4: Existing profile:', existingProfile ? 'found' : 'none');
 
+    if (existingProfile) {
+      return NextResponse.json(
+        { error: 'Biometric profile already enrolled for this member. Re-enrollment not allowed for security reasons.' },
+        { status: 409 }
+      );
+    }
+    
+    let deviceId = body.deviceId || `device-${Date.now()}`;
+    console.log('Step 5: Checking for duplicate biometric data across other members');
+    
+    const duplicateCheck = await BiometricProfile.findOne({
+      biometricType,
+      biometricTemplate: biometricData,
+      isActive: true,
+    });
+    
+    if (duplicateCheck) {
+      console.warn('Biometric data already in use by member:', duplicateCheck.memberId);
+      return NextResponse.json(
+        { error: 'Biometric data already registered. Cannot reuse for another member.' },
+        { status: 409 }
+      );
+    }
+    
     let templateValue: string;
     if (biometricType === 'face') {
       if (isValidDescriptor(biometricData)) {
@@ -79,19 +104,6 @@ export async function POST(request: NextRequest) {
       }
     } else {
       templateValue = biometricData;
-    }
-
-    if (existingProfile) {
-      existingProfile.biometricTemplate = templateValue;
-      existingProfile.enrolledAt = new Date();
-      await existingProfile.save();
-      
-      return NextResponse.json({
-        message: `Biometric profile for ${biometricType} updated successfully`,
-        success: true,
-      }, {
-        status: 200,
-      });
     }
 
     if (!consentGiven) {
