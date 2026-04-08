@@ -1,14 +1,14 @@
-import { MongoClient, Db } from 'mongodb';
+import { MongoClient } from 'mongodb';
 
-const localUri = 'mongodb://localhost:27017/selfhelp';
-const atlasUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/githirioni-shg';
+const localUri = 'mongodb://localhost:27017/githirioni-shg';
+const atlasUri = 'mongodb://Boniface:nb9ms2AYs7mBH.N@ac-vqlqxji-shard-00-00.szukiim.mongodb.net:27017/githirioni-shg?authSource=admin&tls=true';
 
-async function migrateCollections() {
+async function migrate() {
   const localClient = new MongoClient(localUri);
   const atlasClient = new MongoClient(atlasUri);
 
   try {
-    console.log('Connecting to local MongoDB...');
+    console.log('Connecting to local...');
     await localClient.connect();
     const localDb = localClient.db();
 
@@ -17,35 +17,37 @@ async function migrateCollections() {
     const atlasDb = atlasClient.db();
 
     const collections = await localDb.listCollections().toArray();
-    console.log(`Found ${collections.length} collections to migrate`);
+    console.log(`Found ${collections.length} collections\n`);
 
     for (const colInfo of collections) {
       const colName = colInfo.name;
-      console.log(`\nMigrating collection: ${colName}...`);
-
       const localCollection = localDb.collection(colName);
       const atlasCollection = atlasDb.collection(colName);
 
-      const count = await localCollection.countDocuments();
-      console.log(`  Found ${count} documents`);
+      const localCount = await localCollection.countDocuments();
+      if (localCount === 0) {
+        console.log(`${colName}: 0 docs - skipping`);
+        continue;
+      }
 
-      if (count === 0) continue;
+      // Clear existing data in Atlas for this collection
+      await atlasCollection.deleteMany({});
 
+      // Migrate all data
       const docs = await localCollection.find().toArray();
-
       if (docs.length > 0) {
         await atlasCollection.insertMany(docs);
-        console.log(`  ✓ Migrated ${docs.length} documents`);
+        console.log(`${colName}: migrated ${docs.length} docs`);
       }
     }
 
     console.log('\n✓ Migration complete!');
   } catch (error) {
-    console.error('Migration failed:', error);
+    console.error('Error:', error);
   } finally {
     await localClient.close();
     await atlasClient.close();
   }
 }
 
-migrateCollections();
+migrate();
