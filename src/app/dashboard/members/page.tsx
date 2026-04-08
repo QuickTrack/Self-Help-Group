@@ -622,10 +622,22 @@ export default function MembersPage() {
             )}
             <BiometricEnrollment
               memberId={selectedMemberId}
-              onComplete={(success, enrolledTypes) => {
+              onComplete={async (success, enrolledTypes) => {
                 if (success) {
                   setBiometricEnrolled(enrolledTypes);
                   setBiometricSuccess(true);
+                  
+                  // Fetch updated biometric profiles and update the store
+                  try {
+                    const res = await fetch(`/api/biometric/enroll?memberId=${selectedMemberId}`);
+                    const data = await res.json();
+                    if (data.profiles) {
+                      updateMember(selectedMemberId, { biometricProfiles: data.profiles.map((p: any) => p.biometricType) });
+                    }
+                  } catch (e) {
+                    console.error('Failed to refresh biometric data:', e);
+                  }
+                  
                   setTimeout(() => {
                     setShowBiometricModal(false);
                     setBiometricSuccess(false);

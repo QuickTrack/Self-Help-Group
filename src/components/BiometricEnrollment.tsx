@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Camera, Fingerprint, Shield, CheckCircle, XCircle, AlertTriangle, Loader2 } from 'lucide-react';
+import { Camera, Fingerprint, Shield, CheckCircle, XCircle, AlertTriangle, Loader2, Key } from 'lucide-react';
 
 interface BiometricEnrollmentProps {
   memberId: string;
   onComplete?: (success: boolean, enrolledTypes: string[]) => void;
   onError?: (error: string) => void;
+  adminMode?: boolean;
 }
 
 type BiometricType = 'fingerprint' | 'face';
@@ -18,7 +19,7 @@ const CONSENT_TEXT = `I hereby give explicit consent for the collection and proc
 4. I have the right to request deletion of my biometric data
 5. This consent is given in compliance with GDPR and local data protection laws`;
 
-export default function BiometricEnrollment({ memberId, onComplete, onError }: BiometricEnrollmentProps) {
+export default function BiometricEnrollment({ memberId, onComplete, onError, adminMode = false }: BiometricEnrollmentProps) {
   const [biometricType, setBiometricType] = useState<BiometricType>('face');
   const [step, setStep] = useState<'consent' | 'capture' | 'processing' | 'success' | 'error'>('consent');
   const [consentChecked, setConsentChecked] = useState(false);
@@ -26,6 +27,10 @@ export default function BiometricEnrollment({ memberId, onComplete, onError }: B
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
+  const [showAdminOverride, setShowAdminOverride] = useState(false);
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminEmail, setAdminEmail] = useState('');
+  const [pendingBiometricData, setPendingBiometricData] = useState<string | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -59,6 +64,98 @@ export default function BiometricEnrollment({ memberId, onComplete, onError }: B
     }
   };
 
+  interface ImageQualityResult {
+    valid: boolean;
+    error?: string;
+    recommendation?: string;
+  }
+
+  const analyzeImageQuality = (dataUrl: string): Promise<ImageQualityResult> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve({ valid: false, error: 'Failed to analyze image', recommendation: 'Please try again' });
+          return;
+        }
+        
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        
+        // Check minimum dimensions
+        if (img.width < 200 || img.height < 200) {
+          resolve({ 
+            valid: false, 
+            error: 'Image too small. Please retake the photo.', 
+            recommendation: 'Ensure your face fills the frame and is clearly visible.' 
+          });
+          return;
+        }
+        
+        // Calculate average brightness
+        let totalBrightness = 0;
+        let pixels = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
+          totalBrightness += brightness;
+          pixels++;
+        }
+        const avgBrightness = totalBrightness / pixels;
+        
+        // Check for too dark or too bright
+        if (avgBrightness < 50) {
+          resolve({ 
+            valid: false, 
+            error: 'Image too dark. Please retake the photo.', 
+            recommendation: 'Ensure there is adequate lighting on your face.' 
+          });
+          return;
+        }
+        if (avgBrightness > 220) {
+          resolve({ 
+            valid: false, 
+            error: 'Image too bright. Please retake the photo.', 
+            recommendation: 'Avoid direct sunlight or bright lights behind you.' 
+          });
+          return;
+        }
+        
+        // Calculate contrast (standard deviation of brightness)
+        let sumSquaredDiff = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
+          const diff = brightness - avgBrightness;
+          sumSquaredDiff += diff * diff;
+        }
+        const contrast = Math.sqrt(sumSquaredDiff / pixels);
+        
+        // Low contrast indicates blurry image
+        if (contrast < 30) {
+          resolve({ 
+            valid: false, 
+            error: 'Image too blurry. Please retake the photo.', 
+            recommendation: 'Hold the camera steady and ensure good lighting.' 
+          });
+          return;
+        }
+        
+        // Skip the color diversity check since it's causing false positives
+        // The other checks (brightness, contrast, size) are more reliable
+        
+        resolve({ valid: true });
+      };
+      img.onerror = () => {
+        resolve({ valid: false, error: 'Failed to load image', recommendation: 'Please try again' });
+      };
+      img.src = dataUrl;
+    });
+  };
+
   const captureImage = (): string | null => {
     if (!videoRef.current || !canvasRef.current) return null;
     
@@ -74,7 +171,7 @@ export default function BiometricEnrollment({ memberId, onComplete, onError }: B
     canvasRef.current.height = videoRef.current.videoHeight;
     context.drawImage(videoRef.current, 0, 0);
     
-    return canvasRef.current.toDataURL('image/jpeg', 0.8).split(',')[1];
+    return canvasRef.current.toDataURL('image/jpeg', 0.8);
   };
 
   const handleStartCapture = async () => {
@@ -86,6 +183,10 @@ export default function BiometricEnrollment({ memberId, onComplete, onError }: B
     setStep('capture');
     setErrorMessage(null);
     setStatusMessage('');
+    setShowAdminOverride(false);
+    setAdminPassword('');
+    setAdminEmail('');
+    setPendingBiometricData(null);
     
     if (biometricType === 'face') {
       await startCamera();
@@ -105,22 +206,43 @@ export default function BiometricEnrollment({ memberId, onComplete, onError }: B
         setStatusMessage('Capturing face...');
         
         if (!videoRef.current || videoRef.current.readyState < 2) {
-          setErrorMessage('Camera not ready. Please wait a moment and try again.');
-          setIsCapturing(false);
-          setStep('error');
-          return;
+          if (showAdminOverride && pendingBiometricData) {
+            // Use previously captured data for admin override
+            biometricData = pendingBiometricData;
+          } else {
+            setErrorMessage('Camera not ready. Please wait a moment and try again.');
+            setIsCapturing(false);
+            setStep('error');
+            return;
+          }
+        } else {
+          const captured = captureImage();
+          if (!captured) {
+            setErrorMessage('Failed to capture image. Please try again.');
+            setIsCapturing(false);
+            setStep('error');
+            return;
+          }
+          
+          // Analyze image quality before proceeding
+          setStatusMessage('Analyzing image quality...');
+          const qualityResult = await analyzeImageQuality(captured);
+          if (!qualityResult.valid) {
+            setErrorMessage(qualityResult.error || 'Image quality check failed');
+            if (qualityResult.recommendation) {
+              setErrorMessage(prev => prev + ' ' + qualityResult.recommendation);
+            }
+            setIsCapturing(false);
+            setStep('error');
+            return;
+          }
+          
+          // Extract base64 data without the data URL prefix
+          biometricData = captured.split(',')[1];
+          // Store pending data for admin override
+          setPendingBiometricData(captured);
+          stopCamera();
         }
-        
-        const captured = captureImage();
-        if (!captured) {
-          setErrorMessage('Failed to capture image. Please try again.');
-          setIsCapturing(false);
-          setStep('error');
-          return;
-        }
-        
-        biometricData = captured;
-        stopCamera();
       } else {
         setStatusMessage('Recording fingerprint...');
         biometricData = `fingerprint-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -139,6 +261,9 @@ export default function BiometricEnrollment({ memberId, onComplete, onError }: B
           biometricData,
           consentGiven: true,
           consentVersion: '1.0',
+          adminOverride: showAdminOverride,
+          adminPassword: showAdminOverride ? adminPassword : undefined,
+          adminEmail: showAdminOverride ? adminEmail : undefined,
         }),
       });
       
@@ -149,14 +274,20 @@ export default function BiometricEnrollment({ memberId, onComplete, onError }: B
       console.log('Enrollment response text:', text);
       
       if (!text) {
-        throw new Error(`Empty response from server (status ${response.status})`);
+        setErrorMessage('Server returned an empty response. Please try again.');
+        setStep('error');
+        setIsCapturing(false);
+        return;
       }
       
       let data;
       try {
         data = JSON.parse(text);
       } catch {
-        throw new Error(`Invalid JSON response: ${text.substring(0, 200)}`);
+        setErrorMessage('Server error. Please try again or contact admin.');
+        setStep('error');
+        setIsCapturing(false);
+        return;
       }
       
       console.log('Enrollment response data:', JSON.stringify(data));
@@ -166,9 +297,9 @@ export default function BiometricEnrollment({ memberId, onComplete, onError }: B
         setStep('success');
         onComplete?.(true, [...enrolledTypes, biometricType]);
       } else {
-        console.error('Enrollment API error:', data);
         const errorMsg = data.error || data.details || `Enrollment failed (${response.status})`;
-        throw new Error(errorMsg);
+        setErrorMessage(errorMsg);
+        setStep('error');
       }
     } catch (error: any) {
       console.error('Enrollment error:', error);
@@ -188,6 +319,7 @@ export default function BiometricEnrollment({ memberId, onComplete, onError }: B
 
   const handleClose = () => {
     stopCamera();
+    setPendingBiometricData(null);
     onComplete?.(true, enrolledTypes);
   };
 
@@ -529,21 +661,110 @@ export default function BiometricEnrollment({ memberId, onComplete, onError }: B
             {errorMessage}
           </p>
           
-          <button
-            onClick={handleStartCapture}
-            style={{
-              padding: '12px 24px',
-              background: '#228B22',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontWeight: 500,
-              cursor: 'pointer',
-              marginBottom: '12px',
-            }}
-          >
-            Try Again
-          </button>
+          {errorMessage?.includes('already enrolled') && !showAdminOverride && (
+            <button
+              onClick={() => setShowAdminOverride(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                width: '100%',
+                padding: '12px',
+                background: '#FEF3C7',
+                color: '#92400E',
+                border: '1px solid #F59E0B',
+                borderRadius: '8px',
+                fontWeight: 500,
+                cursor: 'pointer',
+                marginBottom: '12px',
+              }}
+            >
+              <Key size={18} />
+              Override with Admin Password
+            </button>
+          )}
+          
+          {showAdminOverride && (
+            <div style={{ marginBottom: '16px', padding: '12px', background: '#FEF3C7', borderRadius: '8px' }}>
+              <p style={{ fontSize: '0.875rem', color: '#92400E', marginBottom: '12px', fontWeight: 500 }}>
+                Enter admin credentials to override
+              </p>
+              <input
+                type="email"
+                placeholder="Admin email"
+                value={adminEmail}
+                onChange={(e) => setAdminEmail(e.target.value)}
+                autoComplete="off"
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid #D1D5DB',
+                  borderRadius: '6px',
+                  marginBottom: '8px',
+                  fontSize: '0.875rem',
+                }}
+              />
+              <input
+                type="password"
+                placeholder="Admin password"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                autoComplete="off"
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid #D1D5DB',
+                  borderRadius: '6px',
+                  marginBottom: '8px',
+                  fontSize: '0.875rem',
+                }}
+              />
+            </div>
+          )}
+          
+          {showAdminOverride ? (
+            <button
+              onClick={handleCapture}
+              disabled={isCapturing || !adminEmail || !adminPassword}
+              style={{
+                padding: '12px 24px',
+                background: (!adminEmail || !adminPassword) ? '#9CA3AF' : '#D97706',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: 500,
+                cursor: (!adminEmail || !adminPassword) ? 'not-allowed' : 'pointer',
+                marginBottom: '12px',
+                width: '100%',
+              }}
+            >
+              {isCapturing ? 'Updating...' : 'Update'}
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                // If biometrics already enrolled, show override option
+                if (enrolledTypes.includes(biometricType)) {
+                  setShowAdminOverride(true);
+                } else {
+                  handleStartCapture();
+                }
+              }}
+              style={{
+                padding: '12px 24px',
+                background: '#228B22',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: 500,
+                cursor: 'pointer',
+                marginBottom: '12px',
+              }}
+            >
+              Try Again
+            </button>
+          )}
           
           <button
             onClick={() => { setStep('consent'); setErrorMessage(null); }}

@@ -62,3 +62,4 @@
 | 2026-04-07 | Allow ineligible welfare payout submissions via `allowIneligibleSubmissions` setting |
 | 2026-04-08 | Camera initialization fix for biometric check-in |
 | 2026-04-08 | Biometric schema fix - added face-descriptor to allowed hashAlgorithm |
+| 2026-04-08 | Deprecated middleware → proxy migration - renamed middleware.ts to proxy.ts with `export function proxy` |

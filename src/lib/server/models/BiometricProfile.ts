@@ -20,6 +20,10 @@ const biometricProfileSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  biometricDataHash: {
+    type: String,
+    required: false,
+  },
   enrolledAt: {
     type: Date,
     default: Date.now,
@@ -43,5 +47,6 @@ const biometricProfileSchema = new mongoose.Schema({
 });
 
 biometricProfileSchema.index({ memberId: 1, biometricType: 1 }, { unique: true });
+biometricProfileSchema.index({ biometricDataHash: 1 });
 
 export const BiometricProfile = mongoose.models.BiometricProfile || mongoose.model('BiometricProfile', biometricProfileSchema);
