@@ -25,6 +25,10 @@ const financialSettingsSchema = new mongoose.Schema({
     type: Number,
     default: 100,
   },
+  meetingBudget: {
+    type: Number,
+    default: 200,
+  },
 }, {
   timestamps: true,
 });

@@ -17,7 +17,8 @@ import {
   HandHeart,
   Video,
   ChevronDown,
-  Keyboard
+  Keyboard,
+  Banknote
 } from 'lucide-react';
 import { useStore } from '../stores/useStore';
 
@@ -34,12 +35,15 @@ interface Member {
 interface AttendanceRecord {
   _id?: string;
   memberId: string;
+  totalContribution?: number;
   name: string;
   photoUrl?: string | null;
   status: string;
   bonusAllocated: boolean;
   bonusAmount: number;
   bonusPaid?: boolean;
+  contributionAmount: number;
+  contributionPaid?: boolean;
   timestamp?: string;
   checkInMethod?: string;
 }
@@ -96,6 +100,13 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
   const [searchResults, setSearchResults] = useState<Member[]>([]);
   const [searching, setSearching] = useState(false);
   const [manualMode, setManualMode] = useState(false);
+
+  const getContributionAmount = (record: AttendanceRecord) => {
+    if (!financialSettings) return 0;
+    const totalContrib = memberContributions[record.memberId] || 0;
+    const meetingBudget = financialSettings.meetingBudget || 0;
+    return Math.max(0, totalContrib - meetingBudget);
+  };
   const [attendanceList, setAttendanceList] = useState<AttendanceRecord[]>([]);
   const [loadingAttendance, setLoadingAttendance] = useState(true);
   const [financialSettings, setFinancialSettings] = useState<{
@@ -103,7 +114,10 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
     shareValue: number;
     interestRate: number;
     monthlyContribution: number;
+    meetingBudget: number;
   } | null>(null);
+  const [paymentType, setPaymentType] = useState<'bonus' | 'contribution'>('bonus');
+  const [memberContributions, setMemberContributions] = useState<Record<string, number>>({});
   const [lastVerifiedMember, setLastVerifiedMember] = useState<{
     name: string;
     photoUrl?: string;
@@ -206,6 +220,28 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
     loadFinancialSettings();
     const interval = setInterval(loadFinancialSettings, 10000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const loadMemberContributions = async () => {
+      try {
+        const res = await fetch('/api/contributions?limit=1000');
+        const data = await res.json();
+        if (data.contributions) {
+          const contribMap: Record<string, number> = {};
+          data.contributions.forEach((c: any) => {
+            const memberId = typeof c.member === 'string' ? c.member : c.member?._id;
+            if (memberId) {
+              contribMap[memberId] = (contribMap[memberId] || 0) + c.amount;
+            }
+          });
+          setMemberContributions(contribMap);
+        }
+      } catch (error) {
+        console.error('Failed to load contributions:', error);
+      }
+    };
+    loadMemberContributions();
   }, []);
 
   const initializeCamera = useCallback(async (): Promise<boolean> => {
@@ -436,6 +472,7 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
             status: 'manual',
             bonusAllocated: true,
             bonusAmount: data.attendance?.bonusAmount || 0,
+            contributionAmount: 0,
             timestamp: data.attendance?.verifiedAt,
             checkInMethod: 'manual',
           }]);
@@ -973,6 +1010,53 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
           </div>
         </div>
 
+        {/* Payment Type Toggle */}
+        {financialSettings && (
+          <div style={{ 
+            display: 'flex', 
+            gap: '8px', 
+            marginBottom: '16px',
+            padding: '8px',
+            background: paymentType === 'contribution' ? '#FEF3C7' : '#F0FDF4',
+            borderRadius: '8px',
+            border: '1px solid',
+            borderColor: paymentType === 'contribution' ? '#FDE047' : '#BBF7D0',
+          }}>
+            <button
+              onClick={() => setPaymentType('bonus')}
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '0.875rem',
+                fontWeight: 500,
+                cursor: 'pointer',
+                background: paymentType === 'bonus' ? '#16A34A' : 'transparent',
+                color: paymentType === 'bonus' ? 'white' : '#166534',
+              }}
+            >
+              Bonus
+            </button>
+            <button
+              onClick={() => setPaymentType('contribution')}
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '0.875rem',
+                fontWeight: 500,
+                cursor: 'pointer',
+                background: paymentType === 'contribution' ? '#EAB308' : 'transparent',
+                color: paymentType === 'contribution' ? 'white' : '#A16207',
+              }}
+            >
+              Contribution
+            </button>
+          </div>
+        )}
+
         <div style={{ marginBottom: '12px' }}>
           <div style={{ position: 'relative' }}>
             <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
@@ -999,22 +1083,38 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
             gap: '16px', 
             marginBottom: '16px',
             padding: '12px',
-            background: '#F0F9FF',
+            background: paymentType === 'contribution' ? '#FEF3C7' : '#F0F9FF',
             borderRadius: '8px',
-            border: '1px solid #BAE6FD',
+            border: '1px solid',
+            borderColor: paymentType === 'contribution' ? '#FDE047' : '#BAE6FD',
           }}>
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ fontSize: '0.75rem', color: '#0369A1', marginBottom: '4px' }}>Total Members</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0C4A6E' }}>{attendanceList.length}</div>
+              <div style={{ fontSize: '0.75rem', color: paymentType === 'contribution' ? '#A16207' : '#0369A1', marginBottom: '4px' }}>Total Members</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: paymentType === 'contribution' ? '#713F12' : '#0C4A6E' }}>{attendanceList.length}</div>
             </div>
-            <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ fontSize: '0.75rem', color: '#0369A1', marginBottom: '4px' }}>Bonus/Attendance</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0C4A6E' }}>KES {financialSettings.bonusPerAttendance.toLocaleString()}</div>
-            </div>
-            <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ fontSize: '0.75rem', color: '#0369A1', marginBottom: '4px' }}>Total Bonus</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0C4A6E' }}>KES {(attendanceList.filter(a => a.bonusAllocated).length * financialSettings.bonusPerAttendance).toLocaleString()}</div>
-            </div>
+            {paymentType === 'bonus' ? (
+              <>
+                <div style={{ flex: 1, textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#0369A1', marginBottom: '4px' }}>Bonus/Attendance</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0C4A6E' }}>KES {financialSettings.bonusPerAttendance.toLocaleString()}</div>
+                </div>
+                <div style={{ flex: 1, textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#0369A1', marginBottom: '4px' }}>Total Bonus</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0C4A6E' }}>KES {(attendanceList.filter(a => a.bonusAllocated).length * financialSettings.bonusPerAttendance).toLocaleString()}</div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ flex: 1, textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#A16207', marginBottom: '4px' }}>Meeting Budget</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#713F12' }}>KES {financialSettings.meetingBudget.toLocaleString()}</div>
+                </div>
+                <div style={{ flex: 1, textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#A16207', marginBottom: '4px' }}>Total Contributions</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#713F12' }}>KES {attendanceList.reduce((sum, a) => sum + getContributionAmount(a), 0).toLocaleString()}</div>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -1096,6 +1196,42 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
                       <CheckCircle size={12} />
                       Paid
                     </div>
+                  ) : (paymentType === 'contribution') ? (
+                    <>
+                      <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '4px',
+                        padding: '4px 10px',
+                        background: '#EAB308',
+                        borderRadius: '20px',
+                        color: 'white',
+                        fontSize: '0.75rem',
+                        fontWeight: 500,
+                      }}>
+                        <Banknote size={12} />
+                        +{getContributionAmount(record).toLocaleString()}
+                      </div>
+                      <button
+                        onClick={() => {
+                          setSelectedAttendance(record);
+                          setShowBonusPaidModal(true);
+                        }}
+                        disabled={!record._id}
+                        style={{
+                          padding: '4px 8px',
+                          background: '#FEF3C7',
+                          border: '1px solid #FDE047',
+                          borderRadius: '4px',
+                          fontSize: '0.6875rem',
+                          color: '#92400E',
+                          cursor: record._id ? 'pointer' : 'not-allowed',
+                          fontWeight: 500,
+                        }}
+                      >
+                        Mark Paid
+                      </button>
+                    </>
                   ) : record.bonusAllocated ? (
                     <>
                       <div style={{ 
@@ -1265,9 +1401,24 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
                   <span style={{ fontSize: '0.875rem', fontWeight: 500, color: '#1A1A1A' }}>{selectedAttendance.name}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '0.875rem', color: '#6B7280' }}>Amount:</span>
-                  <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#16A34A' }}>KES {selectedAttendance.bonusAmount.toLocaleString()}</span>
+                  <span style={{ fontSize: '0.875rem', color: '#6B7280' }}>Payment Type:</span>
+                  <span style={{ fontSize: '0.875rem', fontWeight: 500, color: paymentType === 'contribution' ? '#A16207' : '#166534' }}>
+                    {paymentType === 'contribution' ? 'Contribution' : 'Bonus'}
+                  </span>
                 </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '0.875rem', color: '#6B7280' }}>Amount:</span>
+                  <span style={{ fontSize: '0.875rem', fontWeight: 600, color: paymentType === 'contribution' ? '#A16207' : '#16A34A' }}>
+                    KES {paymentType === 'contribution' 
+                      ? getContributionAmount(selectedAttendance).toLocaleString() 
+                      : selectedAttendance.bonusAmount.toLocaleString()}
+                  </span>
+                </div>
+                {paymentType === 'contribution' && (
+                  <div style={{ fontSize: '0.75rem', color: '#6B7280', marginBottom: '8px', padding: '8px', background: '#FEF3C7', borderRadius: '4px' }}>
+                    Formula: Member's Total Contributions - Meeting Budget = {getContributionAmount(selectedAttendance).toLocaleString()}
+                  </div>
+                )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '8px', borderTop: '1px solid #E5E7EB' }}>
                   <span style={{ fontSize: '0.875rem', color: '#6B7280' }}>Deducted from:</span>
                   <span style={{ fontSize: '0.875rem', fontWeight: 500, color: '#1A1A1A' }}>Group Savings</span>
@@ -1315,16 +1466,61 @@ export default function BiometricCheckIn({ meetingId, onClose }: BiometricCheckI
                         alert(data.error || 'Payment failed');
                         return;
                       }
+
+                      // Reset member contribution if payment type is contribution
+                      if (paymentType === 'contribution') {
+                        try {
+                          // Deduct from member's savings
+                          await fetch('/api/savings', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              memberId: selectedAttendance.memberId,
+                              adjustment: -getContributionAmount(selectedAttendance),
+                              reason: 'Meeting contribution payment',
+                            }),
+                          });
+                          
+                          // Save to kitty
+                          const memberInfo = storeMembers.find((m: any) => m._id === selectedAttendance.memberId);
+                          await fetch('/api/kitty', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              meetingId: meetingId,
+                              memberId: selectedAttendance.memberId,
+                              memberName: selectedAttendance.name,
+                              memberIdStr: memberInfo?.memberId || '',
+                              totalContribution: memberContributions[selectedAttendance.memberId] || 0,
+                              amountPaid: getContributionAmount(selectedAttendance),
+                            }),
+                          });
+                          
+                          // Update local contribution tracking to 0
+                          const memberKey = selectedAttendance.memberId;
+                          setMemberContributions(prev => {
+                            const updated = { ...prev };
+                            updated[memberKey] = 0;
+                            return updated;
+                          });
+                        } catch (e) {
+                          console.error('Failed to reset contribution:', e);
+                        }
+                      }
                       
                       setAttendanceList(prev => prev.map(a => 
                         a._id === selectedAttendance._id 
-                          ? { ...a, bonusPaid: true }
+                          ? { ...a, bonusPaid: true, contributionPaid: true }
                           : a
                       ));
                       setShowBonusPaidModal(false);
                       setSelectedAttendance(null);
                       fetchAttendance();
-                      alert(`Bonus of KES ${selectedAttendance.bonusAmount.toLocaleString()} marked as paid. Group savings deducted.`);
+                      const paymentAmount = paymentType === 'contribution' 
+                        ? getContributionAmount(selectedAttendance) 
+                        : selectedAttendance.bonusAmount;
+                      const paymentLabel = paymentType === 'contribution' ? 'Contribution' : 'Bonus';
+                      alert(`${paymentLabel} of KES ${paymentAmount.toLocaleString()} marked as paid. Group savings deducted.`);
                     } catch (error) {
                       console.error('Payment error:', error);
                       alert('Failed to process payment');

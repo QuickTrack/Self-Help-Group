@@ -94,7 +94,8 @@ export function MemberSearch({
   function handleSelect(member: Member) {
     setQuery('');
     setIsOpen(false);
-    onChange(member.memberId, member);
+    // Pass _id (MongoDB ObjectId) instead of memberId for database references
+    onChange(member._id, member);
   }
 
   function handleClear() {

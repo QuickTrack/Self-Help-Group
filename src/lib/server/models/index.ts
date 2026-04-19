@@ -15,3 +15,4 @@ export { EligibilitySettings, initializeEligibilitySettings } from './Eligibilit
 export { BiometricProfile } from './BiometricProfile';
 export { Attendance } from './Attendance';
 export { FinancialSettings } from './FinancialSettings';
+export { Kitty } from './Kitty';

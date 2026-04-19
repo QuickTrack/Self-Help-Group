@@ -298,6 +298,11 @@ h1, h2, h3, h4, h5, h6 {
     display: block !important;
   }
   
+  /* Hide edge trigger on mobile - use button instead */
+  .sidebar-edge-trigger {
+    display: none !important;
+  }
+  
   .sidebar-hover-sidebar {
     transform: translateX(-100%) !important;
     transition: transform 150ms ease-out !important;

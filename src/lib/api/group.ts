@@ -41,6 +41,7 @@ interface GroupSettings {
   minGuarantors?: number;
   welfareContribution?: number;
   bonusPerAttendance?: number;
+  meetingBudget?: number;
 }
 
 export interface Group {

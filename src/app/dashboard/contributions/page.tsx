@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useStore } from '../../../stores/useStore';
 import { PermissionGuard } from '@/components/PermissionGuard';
 import { 
@@ -12,7 +12,8 @@ import {
   X,
   Calendar,
   Banknote,
-  Building2
+  Building2,
+  PiggyBank
 } from 'lucide-react';
 import { MemberSearch } from '@/components/MemberSearch';
 
@@ -25,6 +26,49 @@ export default function ContributionsPage() {
   const [filterMethod, setFilterMethod] = useState('');
   const [filterType, setFilterType] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [dbContributions, setDbContributions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeView, setActiveView] = useState<'contributions' | 'kitty'>('contributions');
+  const [kittyData, setKittyData] = useState<any[]>([]);
+  const [kittyLoading, setKittyLoading] = useState(true);
+  const [meetingBudget, setMeetingBudget] = useState<number>(200);
+
+  useEffect(() => {
+    async function fetchContributions() {
+      try {
+        const res = await fetch('/api/contributions?limit=500');
+        const data = await res.json();
+        setDbContributions(data.contributions || []);
+      } catch (error) {
+        console.error('Failed to fetch contributions:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchContributions();
+    
+    // Fetch meeting budget from settings
+    fetch('/api/financial-settings')
+      .then(r => r.json())
+      .then(data => {
+        setMeetingBudget(data.settings?.meetingBudget || 200);
+      })
+      .catch(console.error);
+    
+    if (activeView === 'kitty') {
+      setKittyLoading(true);
+      fetch('/api/kitty')
+        .then(r => r.json())
+        .then(data => {
+          setKittyData(data.kities || []);
+        })
+        .catch(console.error)
+        .finally(() => setKittyLoading(false));
+    }
+  }, [activeView]);
+
+  const displayContributions = dbContributions.length > 0 ? dbContributions : contributions;
+
   const [formData, setFormData] = useState({
     member: '',
     amount: '',
@@ -46,7 +90,7 @@ export default function ContributionsPage() {
     return 'Unknown';
   };
 
-  const filteredContributions = contributions.filter((c: any) => {
+  const filteredContributions = displayContributions.filter((c: any) => {
     const memberName = getMemberName(c.member).toLowerCase();
     const matchesSearch = !searchTerm || memberName.includes(searchTerm.toLowerCase());
     const matchesMethod = !filterMethod || c.paymentMethod === filterMethod;
@@ -54,7 +98,7 @@ export default function ContributionsPage() {
     return matchesSearch && matchesMethod && matchesType;
   });
 
-  const totalAmount = filteredContributions.reduce((sum: number, c: any) => sum + c.amount, 0);
+  const totalAmount = displayContributions.reduce((sum: number, c: any) => sum + c.amount, 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,6 +126,9 @@ export default function ContributionsPage() {
       if (res.ok) {
         const data = await res.json();
         addContribution(data.contribution);
+        const refreshRes = await fetch('/api/contributions?limit=500');
+        const refreshData = await refreshRes.json();
+        setDbContributions(refreshData.contributions || []);
       } else {
         const error = await res.json();
         alert(error.error || 'Failed to record contribution');
@@ -134,12 +181,100 @@ export default function ContributionsPage() {
     }).format(amount);
   };
 
+  const renderKittyView = () => {
+    const totalKittyCollected = kittyData.reduce((sum: number, k: { totalCollected?: number }) => sum + (k.totalCollected || 0), 0);
+    
+    return (
+      <div>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '16px',
+          marginBottom: '24px'
+        }}>
+          <div className="card" style={{ padding: '16px' }}>
+            <div style={{ fontSize: '0.75rem', color: '#6B6B6B', marginBottom: '4px' }}>Budget per Member</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#1A1A1A' }}>{formatCurrency(meetingBudget)}</div>
+          </div>
+          <div className="card" style={{ padding: '16px' }}>
+            <div style={{ fontSize: '0.75rem', color: '#6B6B6B', marginBottom: '4px' }}>Total Collected</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#16A34A' }}>{formatCurrency(totalKittyCollected)}</div>
+          </div>
+          <div className="card" style={{ padding: '16px' }}>
+            <div style={{ fontSize: '0.75rem', color: '#6B6B6B', marginBottom: '4px' }}>Meetings</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#228B22' }}>{kittyData.length}</div>
+          </div>
+        </div>
+        
+        <div className="card">
+          <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '16px' }}>Kitty Records</h3>
+          {kittyLoading ? (
+            <div style={{ padding: '40px', textAlign: 'center' }}>Loading...</div>
+          ) : kittyData.length === 0 ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#6B6B6B' }}>
+              No kitty records yet. Members will appear here after contribution payments.
+            </div>
+          ) : (
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Meeting</th>
+                  <th>Members</th>
+                  <th>Budget/Member</th>
+                  <th style={{ textAlign: 'right' }}>Total Collected</th>
+                </tr>
+              </thead>
+              <tbody>
+                {kittyData.map((kitty: any) => (
+                  <tr key={kitty._id}>
+                    <td>{new Date(kitty.meetingDate).toLocaleDateString()}</td>
+                    <td>{kitty.meetingId?.slice(-8) || 'N/A'}</td>
+                    <td>{kitty.memberCount}</td>
+                    <td>{formatCurrency(kitty.meetingBudget || 200)}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 600, color: '#16A34A' }}>
+                      {formatCurrency(kitty.totalCollected || 0)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    );
+  };
+  
+  if (activeView === 'kitty') {
+    return renderKittyView();
+  }
+  
   return (
     <div>
       <div style={{ marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#1A1A1A', marginBottom: '4px' }}>
-          Contributions
-        </h1>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#1A1A1A' }}>
+            Contributions
+          </h1>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => setActiveView('contributions')}
+              className={`btn ${activeView === 'contributions' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ padding: '8px 16px' }}
+            >
+              <Wallet size={16} style={{ marginRight: '6px' }} />
+              Contributions
+            </button>
+            <button
+              onClick={() => setActiveView('kitty')}
+              className="btn btn-secondary"
+              style={{ padding: '8px 16px' }}
+            >
+              <PiggyBank size={16} style={{ marginRight: '6px' }} />
+              Kitty
+            </button>
+          </div>
+        </div>
         <p style={{ color: '#6B6B6B', fontSize: '0.875rem' }}>
           Record and manage chama contributions
         </p>
@@ -240,7 +375,13 @@ export default function ContributionsPage() {
             </tr>
           </thead>
           <tbody>
-            {filteredContributions.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: '#6B6B6B' }}>
+                  Loading...
+                </td>
+              </tr>
+            ) : filteredContributions.length === 0 ? (
               <tr>
                 <td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: '#6B6B6B' }}>
                   No contributions found

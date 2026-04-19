@@ -72,6 +72,7 @@ interface SettingsState {
   weeklyContribution: string;
   welfareContribution: string;
   bonusPerAttendance: string;
+  meetingBudget: string;
   smsNotifications: boolean;
   emailNotifications: boolean;
 }
@@ -192,6 +193,7 @@ export default function SettingsPage() {
     weeklyContribution: '250',
     welfareContribution: '100',
     bonusPerAttendance: '1000',
+    meetingBudget: '200',
     smsNotifications: true,
     emailNotifications: true,
   });
@@ -226,6 +228,7 @@ export default function SettingsPage() {
         weeklyContribution: String(groupSettings.weeklyContribution || 250),
         welfareContribution: String(groupSettings.welfareContribution || 100),
         bonusPerAttendance: String(groupSettings.bonusPerAttendance || 1000),
+        meetingBudget: settings.meetingBudget || '200',
         smsNotifications: groupSettings.smsNotifications ?? true,
         emailNotifications: groupSettings.emailNotifications ?? true,
       });
@@ -240,8 +243,9 @@ export default function SettingsPage() {
         if (data.settings) {
           setSettings(prev => ({
             ...prev,
-            bonusPerAttendance: String(data.settings.bonusPerAttendance || 1000),
-            welfareContribution: String(data.settings.welfareContribution || 100),
+            bonusPerAttendance: String(data.settings.bonusPerAttendance ?? prev.bonusPerAttendance ?? 1000),
+            welfareContribution: String(data.settings.welfareContribution ?? prev.welfareContribution ?? 100),
+            meetingBudget: String(data.settings.meetingBudget ?? prev.meetingBudget ?? 200),
           }));
         }
       } catch (error) {
@@ -314,6 +318,7 @@ export default function SettingsPage() {
           interestRate: Number(settings.defaultInterestRate),
           monthlyContribution: Number(settings.monthlyContribution),
           welfareContribution: Number(settings.welfareContribution),
+          meetingBudget: Number(settings.meetingBudget),
         }),
       });
 
@@ -917,6 +922,24 @@ export default function SettingsPage() {
                   onBlur={(e) => e.target.style.borderColor = '#FDE047'}
                 />
                 <p style={{ fontSize: '0.6875rem', color: '#713F12', marginTop: '6px' }}>Bonus amount for attending meetings</p>
+              </div>
+
+              <div style={{ 
+                padding: '20px', 
+                background: '#F0F9FF', 
+                borderRadius: '10px',
+                border: '1px solid #BAE6FD'
+              }}>
+                <label style={{ ...cardStyles.label, color: '#0369A1' }}>Meeting Budget per Member (KES)</label>
+                <input
+                  type="number"
+                  value={settings.meetingBudget}
+                  onChange={(e) => setSettings({ ...settings, meetingBudget: e.target.value })}
+                  style={{ ...cardStyles.input, borderColor: '#7DD3FC', background: 'white' }}
+                  onFocus={(e) => e.target.style.borderColor = '#228B22'}
+                  onBlur={(e) => e.target.style.borderColor = '#7DD3FC'}
+                />
+                <p style={{ fontSize: '0.6875rem', color: '#0C4A6E', marginTop: '6px' }}>Budget allocated per member for meeting expenses</p>
               </div>
             </div>
           </div>

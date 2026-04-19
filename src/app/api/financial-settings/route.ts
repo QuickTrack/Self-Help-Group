@@ -9,6 +9,7 @@ interface FinancialSettingsDoc {
   interestRate?: number;
   monthlyContribution?: number;
   welfareContribution?: number;
+  meetingBudget?: number;
   loanProcessingFee?: number;
   latePaymentPenalty?: number;
 }
@@ -20,6 +21,7 @@ export async function GET() {
     interestRate: 10,
     monthlyContribution: 1000,
     welfareContribution: 100,
+    meetingBudget: 200,
     loanProcessingFee: 500,
     latePaymentPenalty: 100,
   };
@@ -39,6 +41,7 @@ export async function GET() {
         interestRate: defaults.interestRate,
         monthlyContribution: defaults.monthlyContribution,
         welfareContribution: defaults.welfareContribution,
+        meetingBudget: defaults.meetingBudget,
         loanProcessingFee: defaults.loanProcessingFee,
         latePaymentPenalty: defaults.latePaymentPenalty,
       }
@@ -53,6 +56,7 @@ export async function GET() {
         interestRate: settings.interestRate ?? defaults.interestRate,
         monthlyContribution: settings.monthlyContribution ?? defaults.monthlyContribution,
         welfareContribution: settings.welfareContribution ?? defaults.welfareContribution,
+        meetingBudget: settings.meetingBudget ?? defaults.meetingBudget,
         loanProcessingFee: settings.loanProcessingFee ?? defaults.loanProcessingFee,
         latePaymentPenalty: settings.latePaymentPenalty ?? defaults.latePaymentPenalty,
       }
@@ -74,7 +78,7 @@ export async function PUT(request: NextRequest) {
     const updateData: any = {};
     const allowedFields = [
       'bonusPerAttendance', 'shareValue', 'interestRate', 
-      'monthlyContribution', 'welfareContribution', 'loanProcessingFee', 'latePaymentPenalty'
+      'monthlyContribution', 'welfareContribution', 'meetingBudget', 'loanProcessingFee', 'latePaymentPenalty'
     ];
     
     for (const field of allowedFields) {
@@ -102,6 +106,7 @@ export async function PUT(request: NextRequest) {
         interestRate: settings.interestRate,
         monthlyContribution: settings.monthlyContribution,
         welfareContribution: settings.welfareContribution,
+        meetingBudget: settings.meetingBudget,
         loanProcessingFee: settings.loanProcessingFee,
         latePaymentPenalty: settings.latePaymentPenalty,
       }

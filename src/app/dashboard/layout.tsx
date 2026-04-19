@@ -79,7 +79,7 @@ export default function DashboardLayout({
       {/* Trigger zone - only on left edge */}
       <div className="sidebar-edge-trigger" />
       
-      <aside className="sidebar-hover-sidebar">
+      <aside className={`sidebar-hover-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div style={{
           padding: '20px 24px',
           borderBottom: '1px solid #E5E7EB',

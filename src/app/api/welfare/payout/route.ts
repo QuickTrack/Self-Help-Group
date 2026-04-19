@@ -131,10 +131,10 @@ async function checkEligibility(memberId: string, eventType: string, requestedAm
   const settings = await getEligibilitySettings();
   let member;
   
-  if (mongoose.Types.ObjectId.isValid(memberId) && memberId.length === 24) {
+  // Try finding by memberId first, then by ObjectId
+  member = await Member.findOne({ memberId: memberId });
+  if (!member && mongoose.Types.ObjectId.isValid(memberId) && memberId.length === 24) {
     member = await Member.findById(memberId);
-  } else {
-    member = await Member.findOne({ memberId: memberId });
   }
   
   if (!member) {
@@ -265,18 +265,27 @@ export async function POST(request: Request) {
     }
     
     let memberId = memberInput;
-    if (!mongoose.Types.ObjectId.isValid(memberInput) || memberInput.length !== 24) {
-      const foundMember = await Member.findOne({ memberId: memberInput });
-      if (!foundMember) {
-        return NextResponse.json({ error: 'Member not found' }, { status: 400 });
-      }
+    
+    // Always look up member by memberId first (like GSH-0009)
+    const foundMember = await Member.findOne({ memberId: memberInput });
+    if (foundMember) {
       memberId = foundMember._id.toString();
+    } else if (mongoose.Types.ObjectId.isValid(memberInput) && memberInput.length === 24) {
+      // Only if not a memberId, try treating as ObjectId
+      memberId = memberInput;
+    } else {
+      return NextResponse.json({ error: 'Member not found' }, { status: 400 });
     }
     
     const eligibilityCheck = await checkEligibility(memberId, eventType, requestedAmount);
     
+    // Create ObjectId - handle both string and ObjectId input
+    const memberObjId = mongoose.Types.ObjectId.isValid(memberId) && memberId.length === 24
+      ? new mongoose.Types.ObjectId(memberId)
+      : memberId;
+    
     const payout = new WelfarePayout({
-      member: memberId,
+      member: memberObjId,
       eventType,
       eventDescription,
       requestedAmount,
@@ -296,12 +305,6 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Error creating welfare payout:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    
-    if (errorMessage.includes('validation') || errorMessage.includes('Cast to ObjectId')) {
-      return NextResponse.json({ 
-        error: "We're sorry, but we couldn't process your payout at this time. Your account does not currently meet the eligibility requirements for a welfare payout. Please review your account settings or contact our support team for help." 
-      }, { status: 400 });
-    }
     
     return NextResponse.json({ error: 'Failed to create payout request: ' + errorMessage }, { status: 500 });
   }

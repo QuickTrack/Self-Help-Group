@@ -39,6 +39,7 @@ interface GroupSettings {
   weeklyContribution: number;
   welfareContribution?: number;
   bonusPerAttendance?: number;
+  meetingBudget?: number;
   smsNotifications: boolean;
   emailNotifications: boolean;
 }

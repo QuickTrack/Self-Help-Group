@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useStore } from '../../../stores/useStore';
 import { useAppSelector } from '@/lib/store/hooks';
 import { 
@@ -16,8 +16,13 @@ import {
   TrendingUp,
   TrendingDown,
   AlertTriangle,
-  UserCheck
+  UserCheck,
+  Search,
+  X,
+  MessageCircle,
+  Send
 } from 'lucide-react';
+import { MemberSearch } from '@/components/MemberSearch';
 
 type ReportType = 'summary' | 'contributions' | 'loans' | 'members' | 'welfare' | 'attendance';
 
@@ -32,6 +37,11 @@ export default function ReportsPage() {
   const [welfareLoading, setWelfareLoading] = useState(false);
   const [attendanceData, setAttendanceData] = useState<any>(null);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [selectedMemberStatement, setSelectedMemberStatement] = useState<string>('');
+  const [memberContributions, setMemberContributions] = useState<any[]>([]);
+  const [memberLoading, setMemberLoading] = useState(false);
+  const [bulkSending, setBulkSending] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState(0);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-KE', {
@@ -42,6 +52,64 @@ export default function ReportsPage() {
   };
 
   const totalContributions = contributions.reduce((sum: number, c: any) => sum + c.amount, 0);
+
+  const memberTotalContributions = useMemo(() => {
+    const map: Record<string, number> = {};
+    contributions.forEach((c: any) => {
+      const memberId = typeof c.member === 'string' ? c.member : c.member?._id;
+      if (memberId) {
+        map[memberId] = (map[memberId] || 0) + c.amount;
+      }
+    });
+    return map;
+  }, [contributions]);
+  
+  useEffect(() => {
+    async function fetchContributions() {
+      try {
+        const res = await fetch('/api/contributions?limit=1000');
+        const data = await res.json();
+        if (data.contributions) {
+          setMemberContributions(data.contributions || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch contributions:', error);
+      }
+    }
+    fetchContributions();
+  }, []);
+  
+  // Ensure members are loaded
+  const [dbMembers, setDbMembers] = useState<any[]>([]);
+  
+  useEffect(() => {
+    async function fetchMembers() {
+      try {
+        const res = await fetch('/api/members?limit=100');
+        const data = await res.json();
+        if (data.members) {
+          setDbMembers(data.members || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch members:', error);
+      }
+    }
+    fetchMembers();
+  }, []);
+  
+  const displayMembers = members.length > 0 ? members : dbMembers;
+  
+  const dbMemberTotalContributions = useMemo(() => {
+    const map: Record<string, number> = {};
+    memberContributions.forEach((c: any) => {
+      const memberId = typeof c.member === 'string' ? c.member : c.member?._id;
+      if (memberId) {
+        map[memberId] = (map[memberId] || 0) + c.amount;
+      }
+    });
+    return map;
+  }, [memberContributions]);
+  
   const totalLoans = loans.reduce((sum: number, l: any) => sum + l.principalAmount, 0);
   const outstandingLoans = loans
     .filter((l: any) => l.status === 'Disbursed')
@@ -89,11 +157,140 @@ export default function ReportsPage() {
         })
         .catch(() => setAttendanceLoading(false));
     }
-  }, [selectedReport, dateFrom, dateTo]);
+    
+    if (selectedReport === 'members' && selectedMemberStatement) {
+      setMemberLoading(true);
+      fetch(`/api/contributions?member=${selectedMemberStatement}&limit=500`)
+        .then(r => r.json())
+        .then(data => {
+          setMemberContributions(data.contributions || []);
+          setMemberLoading(false);
+        })
+        .catch(() => setMemberLoading(false));
+    }
+  }, [selectedReport, dateFrom, dateTo, selectedMemberStatement]);
 
   const handlePrint = () => {
     window.print();
   };
+  
+  const handleMemberSelect = (memberId: string) => {
+    setSelectedMemberStatement(memberId);
+    setMemberContributions([]);
+  };
+  
+  const handleWhatsApp = () => {
+    if (!selectedMember) return;
+    
+    let phone = selectedMember.phoneNumber?.replace(/[^0-9]/g, '');
+    if (!phone) {
+      alert('No phone number available for this member');
+      return;
+    }
+    
+    // Format phone for WhatsApp - Kenya numbers should start with 254
+    if (phone.startsWith('0')) {
+      phone = '254' + phone.substring(1);
+    } else if (!phone.startsWith('254') && phone.length === 12) {
+      phone = '254' + phone.substring(0);
+    } else if (!phone.startsWith('254') && phone.length === 9) {
+      phone = '254' + phone;
+    }
+    
+    const totalContrib = memberContributions.reduce((s: number, c: any) => s + c.amount, 0);
+    const lastContrib = memberContributions[0] 
+      ? new Date(memberContributions[0].date).toLocaleDateString()
+      : 'N/A';
+    
+    const message = `*${groupName} - Member Statement*\n\n` +
+      `_Member: ${selectedMember.fullName}_ (${selectedMember.memberId})\n` +
+      `Status: ${selectedMember.status}\n\n` +
+      `*Contribution Summary:*\n` +
+      `• Total: ${formatCurrency(totalContrib)}\n` +
+      `• Transactions: ${memberContributions.length}\n` +
+      `• Last Contribution: ${lastContrib}\n\n` +
+      `Generated: ${new Date().toLocaleDateString()}`;
+    
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappUrl = `https://wa.me/${phone}?text=${encodedMessage}`;
+    
+    console.log('WhatsApp URL:', whatsappUrl);
+    window.open(whatsappUrl, '_blank');
+  };
+  
+  const handleBulkWhatsApp = async () => {
+    const activeMembers = members.filter((m: any) => m.status === 'active' && m.phoneNumber);
+    if (activeMembers.length === 0) {
+      alert('No active members with phone numbers found');
+      return;
+    }
+    
+    if (!confirm(`Send statement to ${activeMembers.length} members via WhatsApp?`)) {
+      return;
+    }
+    
+    setBulkSending(true);
+    setBulkProgress(0);
+    
+    // Fetch contributions for all members first
+    const memberContribMap: Record<string, any[]> = {};
+    
+    for (const member of activeMembers) {
+      try {
+        const res = await fetch(`/api/contributions?member=${member._id}&limit=500`);
+        const data = await res.json();
+        memberContribMap[member._id] = data.contributions || [];
+      } catch (e) {
+        memberContribMap[member._id] = [];
+      }
+    }
+    
+    // Now send to each member with delay to avoid blocking
+    for (let i = 0; i < activeMembers.length; i++) {
+      const member = activeMembers[i];
+      const contributions = memberContribMap[member._id] || [];
+      
+      let phone = member.phoneNumber?.replace(/[^0-9]/g, '');
+      if (!phone) continue;
+      
+      if (phone.startsWith('0')) {
+        phone = '254' + phone.substring(1);
+      } else if (!phone.startsWith('254') && phone.length === 9) {
+        phone = '254' + phone;
+      }
+      
+      const totalContrib = contributions.reduce((s: number, c: any) => s + c.amount, 0);
+      const lastContrib = contributions[0] 
+        ? new Date(contributions[0].date).toLocaleDateString()
+        : 'N/A';
+      
+      const message = `*${groupName} - Member Statement*\n\n` +
+        `_Member: ${member.fullName}_ (${member.memberId})\n` +
+        `Status: ${member.status}\n\n` +
+        `*Contribution Summary:*\n` +
+        `• Total: ${formatCurrency(totalContrib)}\n` +
+        `• Transactions: ${contributions.length}\n` +
+        `• Last Contribution: ${lastContrib}\n\n` +
+        `Generated: ${new Date().toLocaleDateString()}`;
+      
+      const encodedMessage = encodeURIComponent(message);
+      const whatsappUrl = `https://wa.me/${phone}?text=${encodedMessage}`;
+      
+      window.open(whatsappUrl, '_blank');
+      
+      setBulkProgress(i + 1);
+      
+      // Delay between messages to avoid rate limiting
+      if (i < activeMembers.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
+    
+    setBulkSending(false);
+    alert(`Sent statements to ${activeMembers.length} members!`);
+  };
+  
+  const selectedMember = members.find((m: any) => m._id === selectedMemberStatement);
 
   const handleExportCSV = () => {
     let csv = '';
@@ -367,44 +564,243 @@ export default function ReportsPage() {
             </div>
           )}
 
-          {selectedReport === 'members' && (
+{selectedReport === 'members' && (
             <div>
               <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '16px' }}>
                 Member Statement
               </h3>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Member ID</th>
-                    <th>Name</th>
-                    <th>Location</th>
-                    <th>Status</th>
-                    <th style={{ textAlign: 'right' }}>Savings</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {members.map((m: any) => {
-                    const memberSavings = savings.find((s: any) => s.member === m._id);
-                    return (
-                      <tr key={m._id}>
-                        <td>{m.memberId}</td>
-                        <td>{m.fullName}</td>
-                        <td>{m.location}</td>
-                        <td>
-                          <span className={`badge badge-${m.status === 'active' ? 'success' : 'warning'}`}>
-                            {m.status}
-                          </span>
-                        </td>
-                        <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                          {formatCurrency(memberSavings?.savingsBalance || 0)}
-                        </td>
+              
+              {!selectedMemberStatement ? (
+                <>
+                  <p style={{ color: '#6B6B6B', marginBottom: '16px' }}>
+                    Select a member to view their detailed contribution statement
+                  </p>
+                  <div style={{ marginBottom: '24px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: '250px', maxWidth: '400px' }}>
+                      <MemberSearch
+                        value={selectedMemberStatement}
+                        onChange={handleMemberSelect}
+                        placeholder="Search member by name, ID, or phone..."
+                        filterStatus="all"
+                      />
+                    </div>
+                    <button 
+                      onClick={handleBulkWhatsApp}
+                      disabled={bulkSending}
+                      className="btn btn-secondary"
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '8px',
+                        background: '#25D366',
+                        color: 'white',
+                        border: 'none'
+                      }}
+                    >
+                      {bulkSending ? (
+                        <>Sending ${bulkProgress}...</>
+                      ) : (
+                        <>
+                          <Send size={16} />
+                          Send All via WhatsApp
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Member ID</th>
+                        <th>Name</th>
+                        <th>Location</th>
+                        <th>Status</th>
+                        <th style={{ textAlign: 'right' }}>Total Contributions</th>
                       </tr>
-                    );
-                  })}
-</tbody>
-                </table>
-              </div>
-            )}
+                    </thead>
+                    <tbody>
+                      {displayMembers.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} style={{ textAlign: 'center', padding: '20px', color: '#6B6B6B' }}>
+                            Loading members...
+                          </td>
+                        </tr>
+                      ) : displayMembers.map((m: any) => {
+                        const totalContrib = dbMemberTotalContributions[m._id] || memberTotalContributions[m._id] || 0;
+                        return (
+                          <tr 
+                            key={m._id} 
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => handleMemberSelect(m._id)}
+                          >
+                            <td>{m.memberId}</td>
+                            <td>{m.fullName}</td>
+                            <td>{m.location}</td>
+                            <td>
+                              <span className={`badge badge-${m.status === 'active' ? 'success' : 'warning'}`}>
+                                {m.status}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                              {formatCurrency(totalContrib)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </>
+              ) : (
+                <div>
+                  <div style={{ 
+                    background: '#F8FAF8', 
+                    padding: '16px', 
+                    borderRadius: '8px',
+                    marginBottom: '24px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                      <div>
+                        <div style={{ fontSize: '0.75rem', color: '#6B6B6B' }}>Member</div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 600 }}>
+                          {selectedMember?.fullName}
+                        </div>
+                        <div style={{ color: '#6B6B6B', fontSize: '0.875rem' }}>
+                          {selectedMember?.memberId} • {selectedMember?.phoneNumber} • {selectedMember?.location}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setSelectedMemberStatement('')}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: '4px',
+                          color: '#6B6B6B'
+                        }}
+                      >
+                        <X size={20} />
+                      </button>
+                    </div>
+                    
+                    {memberLoading ? (
+                      <div style={{ color: '#6B6B6B' }}>Loading contributions...</div>
+                    ) : (
+                      <>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+                          <div>
+                            <div style={{ fontSize: '0.75rem', color: '#6B6B6B' }}>Total Contributions</div>
+                            <div style={{ fontSize: '1.125rem', fontWeight: 600, color: '#16A34A' }}>
+                              {formatCurrency(memberContributions.reduce((s: number, c: any) => s + c.amount, 0))}
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '0.75rem', color: '#6B6B6B' }}>Transactions</div>
+                            <div style={{ fontSize: '1.125rem', fontWeight: 600 }}>
+                              {memberContributions.length}
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '0.75rem', color: '#6B6B6B' }}>Last Contribution</div>
+                            <div style={{ fontSize: '1.125rem', fontWeight: 600 }}>
+                              {memberContributions[0] 
+                                ? new Date(memberContributions[0].date).toLocaleDateString()
+                                : 'N/A'}
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '0.75rem', color: '#6B6B6B' }}>Member Status</div>
+                            <div style={{ fontSize: '1.125rem', fontWeight: 600 }}>
+                              <span className={`badge badge-${selectedMember?.status === 'active' ? 'success' : 'warning'}`}>
+                                {selectedMember?.status}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  
+                  <div style={{ marginBottom: '16px', display: 'flex', gap: '12px' }}>
+                    <button 
+                      onClick={handlePrint}
+                      className="btn btn-secondary"
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                    >
+                      <Printer size={16} />
+                      Print Statement
+                    </button>
+                    <button 
+                      onClick={handleWhatsApp}
+                      className="btn btn-secondary"
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '8px',
+                        background: '#25D366',
+                        color: 'white',
+                        border: 'none'
+                      }}
+                    >
+                      <MessageCircle size={16} />
+                      WhatsApp
+                    </button>
+                  </div>
+                  
+                  <h4 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '12px' }}>
+                    Contribution Transactions
+                  </h4>
+                  
+                  {memberLoading ? (
+                    <div style={{ padding: '40px', textAlign: 'center', color: '#6B6B6B' }}>
+                      Loading...
+                    </div>
+                  ) : memberContributions.length === 0 ? (
+                    <div style={{ padding: '40px', textAlign: 'center', color: '#6B6B6B' }}>
+                      No contributions found for this member
+                    </div>
+                  ) : (
+                    <table className="table" style={{ fontSize: '0.875rem' }}>
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Ref No.</th>
+                          <th>Type</th>
+                          <th>Payment Method</th>
+                          <th style={{ textAlign: 'right' }}>Amount</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {memberContributions.map((c: any) => (
+                          <tr key={c._id}>
+                            <td>{new Date(c.date).toLocaleDateString()}</td>
+                            <td style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                              {c._id?.slice(-8).toUpperCase()}
+                            </td>
+                            <td>
+                              <span className={`badge badge-${c.contributionType === 'Special' ? 'info' : 'success'}`}>
+                                {c.contributionType}
+                              </span>
+                            </td>
+                            <td>{c.paymentMethod}</td>
+                            <td style={{ textAlign: 'right', fontWeight: 600, color: '#16A34A' }}>
+                              {formatCurrency(c.amount)}
+                            </td>
+                            <td>
+                              {c.isRecurring ? (
+                                <span className="badge badge-info">Recurring</span>
+                              ) : (
+                                <span className="badge badge-success">Recorded</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {selectedReport === 'welfare' && welfareLoading && (
             <div className="loading">
